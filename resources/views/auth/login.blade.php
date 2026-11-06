@@ -17,7 +17,7 @@
             <div class="d-flex col-12 col-xl-4 align-items-center authentication-bg p-sm-12 p-6">
                 <div class="w-px-400 mx-auto mt-12 pt-5">
                     <span class="badge bg-label-primary mb-5">Security Awareness</span>
-                    <h4 class="mb-1">Selamat datang! 👋</h4>
+                    <h4 class="mb-1">Selamat datang!👋</h4>
                     <p class="mb-6">Masuk ke workspace untuk mengelola simulasi awareness perusahaan.</p>
 
 
