@@ -1,0 +1,37 @@
+#reportComparisonChart { min-block-size: 260px; }
+
+.report-campaign-name {
+  min-inline-size: 190px;
+  max-inline-size: 320px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.report-recipient-name {
+  min-inline-size: 220px;
+  max-inline-size: 300px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media print {
+  @page { size: A4 landscape; margin: 16mm; }
+  .layout-menu, .layout-navbar, .content-footer, .layout-overlay, .drag-target,
+  .menu-mobile-toggler, .template-customizer-open-btn, #template-customizer,
+  .modal, .modal-backdrop, .toast-container, #reportsWorkspace > :not(#reportPrint) { display: none !important; }
+  html, body, .layout-wrapper, .layout-container, .layout-page, .content-wrapper, #main-content {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    background: #fff !important;
+    color: #222 !important;
+  }
+  #reportPrint { display: block !important; color: #222; font: 11px/1.5 Arial, sans-serif; }
+  #reportPrint h1 { color: #222; font-size: 22px; margin-bottom: 6px; }
+  #reportPrint table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+  #reportPrint th, #reportPrint td { border: 1px solid #bbb; padding: 9px; vertical-align: top; text-align: left; }
+  #reportPrint th { font-weight: 700; background: #eee; }
+  #reportPrint tr { break-inside: avoid; }
+  #reportPrint thead { display: table-header-group; }
+}

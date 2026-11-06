@@ -1,0 +1,61 @@
+.compose-editor .ql-editor {
+  min-block-size: 280px;
+  max-block-size: 520px;
+  overflow-y: auto;
+}
+
+.mail-preview-device {
+  inline-size: 100%;
+  max-inline-size: 100%;
+  background-color: var(--bs-paper-bg);
+}
+
+.mail-preview-device.is-mobile {
+  inline-size: 375px;
+}
+
+.mail-preview-frame {
+  display: block;
+  inline-size: 100%;
+  block-size: 390px;
+  border: 0;
+  background-color: #fff;
+}
+
+.template-card-excerpt {
+  display: -webkit-box;
+  min-block-size: 4.5em;
+  overflow: hidden;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+}
+
+.template-card-subject {
+  min-block-size: 3em;
+  overflow-wrap: anywhere;
+}
+
+.compose-wizard .step-trigger {
+  text-align: start;
+}
+
+@media (max-width: 767.98px) {
+  .compose-wizard .bs-stepper-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .compose-wizard .bs-stepper-header .line {
+    display: none;
+  }
+
+  .compose-wizard .step-trigger {
+    justify-content: flex-start;
+  }
+
+  .mail-preview-frame {
+    block-size: 360px;
+  }
+}
