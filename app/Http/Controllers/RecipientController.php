@@ -24,7 +24,7 @@ class RecipientController extends Controller
         try {
             $recipient = Recipient::create(['email' => $request->validated('email'), 'source' => 'Manual']);
         } catch (UniqueConstraintViolationException) {
-            throw ValidationException::withMessages(['email' => 'Email ini sudah ada di daftar.']);
+            throw ValidationException::withMessages(['email' => 'Email ini sudah ada di daftar. ']);
         }
 
         return new RecipientResource($recipient);
