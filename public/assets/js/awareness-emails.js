@@ -1,13 +1,13 @@
 'use strict';
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const root = document.getElementById('emailWorkspace');
   if (!root) return;
   const preview = window.AwarenessPreview;
   const escape = preview.escapeHtml;
   const find = id => document.getElementById(id);
-  let recipients = preview.createRecipients();
-  let nextId = recipients.length + 1;
+  const api = window.AwarenessApi;
+  let recipients = [];
   let editId = null;
   let pendingDelete = [];
   const selected = new Set();
@@ -70,15 +70,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function openDelete(ids) {
     pendingDelete = ids;
-    find('deleteEmailMessage').textContent = ids.length === 1 ? `Hapus ${recipients.find(row => row.id === ids[0]).email} dari daftar pratinjau?` : `Hapus ${ids.length} email terpilih dari daftar pratinjau?`;
+    find('deleteEmailMessage').textContent = ids.length === 1 ? `Hapus ${recipients.find(row => row.id === ids[0]).email} dari daftar email?` : `Hapus ${ids.length} email terpilih dari daftar email?`;
     deletion.show();
   }
   find('deleteSelectedEmails').addEventListener('click', () => openDelete([...selected]));
-  find('confirmDeleteEmails').addEventListener('click', () => {
-    const removed = new Set(pendingDelete);
-    recipients = recipients.filter(row => !removed.has(row.id));
-    removed.forEach(id => selected.delete(id));
-    deletion.hide(); refreshTable(); notify(`${removed.size} email dihapus dari daftar pratinjau.`);
+  find('confirmDeleteEmails').addEventListener('click', async event => {
+    const button = event.currentTarget; button.disabled = true;
+    try {
+      const result = await api.request(api.urls.bulkEmails, { method: 'DELETE', data: { ids: pendingDelete } });
+      pendingDelete.forEach(id => selected.delete(id));
+      deletion.hide(); await reload(); notify(result.deleted + ' email dihapus dari daftar.');
+    } catch (error) { notify(error.message); }
+    finally { button.disabled = false; }
   });
 
   find('emailEditor').addEventListener('hidden.bs.offcanvas', () => {
@@ -87,16 +90,19 @@ document.addEventListener('DOMContentLoaded', () => {
     find('emailEditorTitle').textContent = 'Tambah email';
   });
   find('emailEditor').addEventListener('shown.bs.offcanvas', () => find('recipientEmail').focus());
-  find('emailEditorForm').addEventListener('submit', event => {
+  find('emailEditorForm').addEventListener('submit', async event => {
     event.preventDefault();
-    const email = preview.normalizeEmail(find('recipientEmail').value);
-    const error = !preview.isValidEmail(email) ? 'Masukkan alamat email dengan format yang valid.' : recipients.some(row => row.email === email && row.id !== editId) ? 'Email ini sudah ada di daftar.' : '';
-    find('recipientEmail').classList.toggle('is-invalid', Boolean(error));
-    find('recipientEmailError').textContent = error;
-    if (error) { find('recipientEmail').focus(); return; }
-    if (editId) recipients.find(row => row.id === editId).email = email;
-    else recipients.push({ id: nextId++, email, source: 'Manual', addedAt: new Date().toISOString() });
-    editor.hide(); refreshTable(); notify('Email disimpan ke daftar pratinjau.');
+    const button = event.submitter; if (button.disabled) return;
+    button.disabled = true;
+    try {
+      const email = preview.normalizeEmail(find('recipientEmail').value);
+      await api.request(api.urls.emails + (editId ? '/' + editId : ''), { method: editId ? 'PUT' : 'POST', data: { email } });
+      editor.hide(); await reload(); notify('Email tersimpan.');
+    } catch (error) {
+      find('recipientEmail').classList.add('is-invalid');
+      find('recipientEmailError').textContent = error.errors?.email || error.message;
+      find('recipientEmail').focus();
+    } finally { button.disabled = false; }
   });
   find('recipientEmail').addEventListener('input', () => find('recipientEmail').classList.remove('is-invalid'));
   find('recipientTable').addEventListener('click', event => {
@@ -121,11 +127,13 @@ document.addEventListener('DOMContentLoaded', () => {
   find('exportEmailList').addEventListener('click', () => {
     const emails = table.rows({ search: 'applied' }).data().toArray().map(row => row.email);
     if (!emails.length) { notify('Tidak ada email pada hasil pencarian untuk diekspor.'); return; }
-    preview.download(new Blob([preview.toCsv(emails)], { type: 'text/csv;charset=utf-8;' }), 'daftar-email-pratinjau.csv');
+    preview.download(new Blob([preview.toCsv(emails)], { type: 'text/csv;charset=utf-8;' }), 'daftar-email.csv');
   });
 
-  let importFile = null, importResult = null, importStage = 'upload', importPage = 0, readVersion = 0, reading = false, importSource = 'Excel';
-  function importError(message = '') {
+  let importFile = null, importResult = null, importStage = 'upload', importPage = 0, readVersion = 0, reading = false, committing = false, exampleOnly = false;
+  function importError(message = '', tone = 'danger') {
+    find('importError').classList.remove('alert-danger', 'alert-info');
+    find('importError').classList.add('alert-' + tone);
     find('importError').textContent = message;
     find('importError').classList.toggle('d-none', !message);
   }
@@ -139,11 +147,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     find('importBackButton').textContent = stage === 'review' ? 'Pilih file lain' : stage === 'complete' ? 'Tutup' : 'Batal';
     find('importNextButton').textContent = stage === 'upload' ? 'Periksa file →' : stage === 'review' ? `Tambahkan ${importResult.valid.length} email valid` : 'Lihat daftar email';
-    find('importNextButton').disabled = stage === 'upload' ? !importFile || reading : stage === 'review' ? !importResult.valid.length : false;
+    find('importNextButton').disabled = stage === 'upload' ? !importFile || reading : stage === 'review' ? !importResult.valid.length || exampleOnly : false;
     importError();
   }
   function chooseFile(file) {
-    readVersion++; importFile = file || null; importResult = null;
+    readVersion++; importFile = file || null; importResult = null; exampleOnly = false;
     reading = false; find('importLoading').classList.add('d-none');
     setStage('upload');
     find('selectedImportFile').classList.toggle('d-none', !file);
@@ -156,13 +164,13 @@ document.addEventListener('DOMContentLoaded', () => {
     importPage = Math.max(0, Math.min(importPage, pageCount - 1));
     const pageRows = rows.slice(importPage * 10, importPage * 10 + 10);
     const badges = { valid: ['success', 'Valid'], duplicate: ['warning', 'Duplikat'], invalid: ['danger', 'Tidak valid'] };
-    find('importPreviewRows').innerHTML = pageRows.length ? pageRows.map(row => `<tr><td>${row.number}</td><td class="text-break">${escape(row.value || '—')}</td><td><span class="badge bg-label-${badges[row.status][0]}">${badges[row.status][1]}</span></td><td>${escape(row.reason)}</td></tr>`).join('') : '<tr><td colspan="4" class="text-center text-body-secondary py-5">Tidak ada baris dengan status ini.</td></tr>';
+    find('importPreviewRows').innerHTML = pageRows.length ? pageRows.map(row => `<tr><td>${row.number}</td><td class="text-nowrap">${escape(row.value || '—')}</td><td><span class="badge bg-label-${badges[row.status][0]}">${badges[row.status][1]}</span></td><td>${escape(row.reason)}</td></tr>`).join('') : '<tr><td colspan="4" class="text-center text-body-secondary py-5">Tidak ada baris dengan status ini.</td></tr>';
     find('importPreviewInfo').textContent = rows.length ? `${importPage * 10 + 1}–${Math.min((importPage + 1) * 10, rows.length)} dari ${rows.length} baris` : '0 baris';
     find('previousImportPage').disabled = importPage === 0;
     find('nextImportPage').disabled = importPage + 1 >= pageCount;
   }
-  function reviewRows(rows, name) {
-    importResult = preview.validateRows(rows, recipients.map(row => row.email));
+  function reviewRows(result, name) {
+    importResult = result;
     find('importFileName').textContent = name;
     find('importRowSummary').textContent = `${importResult.rows.length} baris email diperiksa · ${importResult.blank} baris kosong dilewati`;
     find('importValidCount').textContent = importResult.valid.length;
@@ -170,7 +178,9 @@ document.addEventListener('DOMContentLoaded', () => {
     find('importInvalidCount').textContent = importResult.invalid;
     importPage = 0; find('importStatusFilter').value = '';
     setStage('review'); renderPreview();
+    if (exampleOnly) importError('Ini hanya contoh pemeriksaan. Pilih file Anda untuk menyimpan email ke daftar.', 'info');
   }
+  find('emailImportModal').addEventListener('hide.bs.modal', event => { if (committing) event.preventDefault(); });
   find('emailImportModal').addEventListener('hidden.bs.modal', () => {
     chooseFile(null); find('importFile').value = '';
   });
@@ -184,8 +194,8 @@ document.addEventListener('DOMContentLoaded', () => {
     chooseFile(event.dataTransfer.files[0]);
   });
   find('useImportExample').addEventListener('click', () => {
-    readVersion++; reading = false; importSource = 'Excel'; find('importLoading').classList.add('d-none');
-    reviewRows([['email'], ['pegawai.baru@perusahaan.example'], ['anggota.baru@perusahaan.example'], ['PEGAWAI.BARU@perusahaan.example'], ['karyawan001@perusahaan.example'], ['email-tanpa-domain'], ['karyawan@'], ['']], 'Contoh hasil validasi');
+    chooseFile(null); exampleOnly = true;
+    reviewRows(preview.validateRows([['email'], ['pegawai.baru@perusahaan.example'], ['anggota.baru@perusahaan.example'], ['PEGAWAI.BARU@perusahaan.example'], ['email-tanpa-domain'], ['karyawan@'], ['']], recipients.map(row => row.email)), 'Contoh hasil validasi');
   });
   find('importStatusFilter').addEventListener('change', () => { importPage = 0; renderPreview(); });
   find('previousImportPage').addEventListener('click', () => { importPage--; renderPreview(); });
@@ -197,21 +207,25 @@ document.addEventListener('DOMContentLoaded', () => {
   find('importNextButton').addEventListener('click', async () => {
     if (importStage === 'complete') { importer.hide(); return; }
     if (importStage === 'review') {
-      const existing = new Set(recipients.map(row => row.email));
-      const emails = importResult.valid.filter(email => !existing.has(email));
-      emails.forEach(email => recipients.push({ id: nextId++, email, source: importSource, addedAt: new Date().toISOString() }));
-      refreshTable();
-      find('importCompleteMessage').textContent = `${emails.length} email valid ditambahkan ke daftar pratinjau.`;
-      setStage('complete'); return;
+      if (exampleOnly || committing || !importResult?.valid.length) return;
+      committing = true; find('importNextButton').disabled = true; find('importBackButton').disabled = true;
+      try {
+        const result = await api.request(api.urls.importCommit, { method: 'POST', data: { token: importResult.token } });
+        await reload();
+        find('importCompleteMessage').textContent = result.added + ' email valid tersimpan.' + (result.skipped ? ' ' + result.skipped + ' email yang sudah ada dilewati.' : '');
+        setStage('complete');
+      } catch (error) { importError(error.message); }
+      finally { committing = false; find('importBackButton').disabled = false; find('importNextButton').disabled = importStage === 'review' && !importResult?.valid.length; }
+      return;
     }
     if (!importFile || reading) return;
     const version = ++readVersion;
     const file = importFile;
-    importSource = file.name.toLowerCase().endsWith('.csv') ? 'CSV' : 'Excel';
     reading = true; importError(); find('importNextButton').disabled = true; find('importLoading').classList.remove('d-none');
     try {
-      const rows = await preview.readFile(file, window.JSZip);
-      if (version === readVersion) reviewRows(rows, file.name);
+      const data = new FormData(); data.append('file', file);
+      const result = await api.request(api.urls.importPreview, { method: 'POST', data });
+      if (version === readVersion) reviewRows(result, file.name);
     } catch (error) {
       if (version === readVersion) importError(error.message || 'File tidak dapat dibaca. Gunakan template Excel yang disediakan.');
     } finally {
@@ -221,5 +235,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   });
+  async function reload() {
+    const result = await api.request(api.urls.emails);
+    recipients = result.data;
+    const existing = new Set(recipients.map(row => row.id));
+    selected.forEach(id => { if (!existing.has(id)) selected.delete(id); });
+    refreshTable();
+  }
   refreshTable();
+  try { await reload(); }
+  catch (error) { api.showLoadError(root, error.message); }
 });

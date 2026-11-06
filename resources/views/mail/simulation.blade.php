@@ -1,0 +1,2 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{ $subjectText }}</title><style>body{font:14px/1.65 Arial,sans-serif;color:#444050;background:#fff;padding:24px}p{margin:0 0 14px}h1,h2,h3{line-height:1.3;margin:0 0 18px}a{color:#7367f0}blockquote{border-left:3px solid #dedde4;padding-left:12px;margin:0 0 14px}li{margin-bottom:6px}</style></head><body>{!! $body !!}</body></html>

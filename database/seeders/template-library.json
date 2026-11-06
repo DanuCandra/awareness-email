@@ -1,0 +1,71 @@
+[
+  {
+    "id": "layanan",
+    "name": "Kenaikan Gaji 2027 — PT AST INDONESIA",
+    "category": "HR & Payroll",
+    "subject": "Informasi Kenaikan Gaji PT AST INDONESIA Tahun 2027",
+    "updatedAt": "2026-11-04T08:00:00+07:00",
+    "delta": {
+      "ops": [
+        {
+          "insert": "Penyesuaian Gaji Karyawan Tahun 2027"
+        },
+        {
+          "insert": "\n",
+          "attributes": {
+            "header": 2
+          }
+        },
+        {
+          "insert": "Yth. Bapak/Ibu Karyawan PT AST INDONESIA,\n\nKami informasikan bahwa penyesuaian gaji karyawan untuk tahun 2027 telah disetujui. Rincian nominal kenaikan dan tanggal berlakunya penyesuaian telah tersedia pada portal personalia.\n\nSilakan periksa rincian kenaikan gaji Anda dan konfirmasikan penerimaan informasi paling lambat pukul 17.00 WIB hari ini melalui tautan berikut:\n\n{{tracking_link}}\n\nInformasi ini bersifat pribadi. Mohon tidak meneruskan email ini kepada pihak lain.\n\nPemberitahuan untuk: {{email}}\n\nHormat kami,\nHRD PT AST INDONESIA\n"
+        }
+      ]
+    }
+  },
+  {
+    "id": "pelatihan",
+    "name": "Pembaruan Data Payroll 2027",
+    "category": "Administrasi",
+    "subject": "Segera Perbarui Data Payroll Anda Sebelum Penyesuaian Gaji 2027",
+    "updatedAt": "2026-11-03T10:00:00+07:00",
+    "delta": {
+      "ops": [
+        {
+          "insert": "Verifikasi Data Payroll Karyawan"
+        },
+        {
+          "insert": "\n",
+          "attributes": {
+            "header": 2
+          }
+        },
+        {
+          "insert": "Yth. Bapak/Ibu Karyawan PT AST INDONESIA,\n\nDalam persiapan penyesuaian gaji tahun 2027, kami menemukan data administrasi payroll untuk alamat email {{email}} belum terkonfirmasi pada sistem personalia.\n\nUntuk menghindari keterlambatan proses penyesuaian gaji, mohon segera periksa status data Anda melalui tautan di bawah ini. Konfirmasi ditunggu paling lambat pukul 16.00 WIB hari ini.\n\n{{tracking_link}}\n\nApabila konfirmasi belum diterima sampai batas waktu tersebut, proses pembaruan payroll Anda akan masuk ke periode berikutnya.\n\nHormat kami,\nAdministrasi Payroll\nPT AST INDONESIA\n"
+        }
+      ]
+    }
+  },
+  {
+    "id": "kebijakan",
+    "name": "Bonus Akhir Tahun — PT AST INDONESIA",
+    "category": "Benefit Karyawan",
+    "subject": "Konfirmasi Penerimaan Bonus Akhir Tahun PT AST INDONESIA",
+    "updatedAt": "2026-11-02T09:00:00+07:00",
+    "delta": {
+      "ops": [
+        {
+          "insert": "Pemberitahuan Bonus Akhir Tahun"
+        },
+        {
+          "insert": "\n",
+          "attributes": {
+            "header": 2
+          }
+        },
+        {
+          "insert": "Yth. Bapak/Ibu Karyawan PT AST INDONESIA,\n\nAlamat email {{email}} tercatat dalam daftar penerima bonus akhir tahun perusahaan. Rincian nominal bonus dan jadwal pencairan dapat dilihat melalui portal benefit karyawan.\n\nMohon tinjau rincian tersebut dan lakukan konfirmasi penerimaan dalam waktu 1 x 24 jam agar data Anda dapat dimasukkan ke jadwal pencairan terdekat.\n\n{{tracking_link}}\n\nInformasi nominal bonus hanya ditampilkan melalui tautan personal di atas. Harap tidak membagikan tautan ini kepada karyawan lain.\n\nHormat kami,\nHRD & Benefit Karyawan\nPT AST INDONESIA\n"
+        }
+      ]
+    }
+  }
+]

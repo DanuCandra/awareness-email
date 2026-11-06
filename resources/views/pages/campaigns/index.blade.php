@@ -7,7 +7,7 @@
             <div><h4 class="mb-1">Simulasi</h4><p class="mb-0 text-body-secondary">Siapkan simulasi email dan tinjau setiap simulasi.</p></div>
             <div class="d-flex flex-wrap gap-3"><a href="{{ route('email-templates.index') }}" class="btn btn-label-secondary">Template email</a><a href="{{ route('campaigns.create') }}" class="btn btn-primary"><i class="icon-base ti tabler-plus icon-sm me-2" aria-hidden="true"></i>Buat simulasi</a></div>
         </div>
-        <div class="alert alert-primary mb-6" role="note"><span class="fw-medium">Mode pratinjau.</span> Draf dan perubahan disimpan sementara di tab ini. Pengiriman email belum aktif.</div>
+        <div class="alert alert-primary mb-6" role="note"><span class="fw-medium">Simulasi perusahaan.</span> Simpan draf, jadwalkan pengiriman, dan pantau hasil selama periode evaluasi.</div>
         <div class="row g-6 mb-6">
             @foreach ([['total', 'Semua simulasi', 'tabler-send', 'primary'], ['draft', 'Draf', 'tabler-file-pencil', 'secondary'], ['scheduled', 'Terjadwal', 'tabler-calendar-time', 'info'], ['running', 'Berjalan', 'tabler-player-play', 'success']] as [$key, $label, $icon, $color])
                 <div class="col-sm-6 col-xl-3"><div class="card"><div class="card-body d-flex align-items-center justify-content-between gap-3"><div><p class="mb-1">{{ $label }}</p><h4 class="mb-0" data-campaign-count="{{ $key }}">—</h4></div><div class="avatar"><span class="avatar-initial rounded bg-label-{{ $color }}"><i class="icon-base ti {{ $icon }} icon-26px" aria-hidden="true"></i></span></div></div></div></div>

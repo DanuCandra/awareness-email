@@ -308,3 +308,12 @@ test('template validation follows the current category catalog including newly a
   core.removeCategory(state, 'Operasional');
   assert.ok(core.validateTemplate(template, state.categories).category);
 });
+
+
+test('database recipients use actual ids and an empty registry cannot fall back to samples', () => {
+  const registry = [{ id: 902, email: 'real@example.com' }, { id: 1200, email: 'other@example.com' }];
+  assert.deepEqual([...core.recipientsFor({ recipientMode: 'all' }, registry)], [902, 1200]);
+  assert.deepEqual([...core.recipientsFor({ recipientMode: 'selected', recipientIds: [1, 902, 902, 999] }, registry)], [902]);
+  assert.deepEqual([...core.recipientsFor({ recipientMode: 'all', recipientRegistry: [] })], []);
+  assert.ok(core.validateCampaign({ ...core.initialState().campaigns[0], recipientMode: 'all' }, { recipients: [] }).recipients);
+});

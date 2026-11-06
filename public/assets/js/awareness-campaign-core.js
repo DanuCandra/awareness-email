@@ -188,9 +188,10 @@
     return templates.length;
   }
 
-  function recipientsFor(campaign) {
-    if (campaign.recipientMode === 'all') return preview.createRecipients().map(item => item.id);
-    return [...new Set((campaign.recipientIds || []).filter(id => Number.isInteger(id) && id >= 1 && id <= 480))];
+  function recipientsFor(campaign, available = campaign.recipientRegistry || preview.createRecipients()) {
+    const ids = new Set(available.map(item => item.id));
+    if (campaign.recipientMode === 'all') return [...ids];
+    return [...new Set((campaign.recipientIds || []).filter(id => Number.isInteger(id) && ids.has(id)))];
   }
 
   function parseSchedule(value) {
@@ -232,7 +233,7 @@
     if (!text(campaign.name).trim() || text(campaign.name).length > 120) errors.name = 'Isi nama simulasi, maksimal 120 karakter.';
     if (!text(campaign.senderName).trim() || text(campaign.senderName).length > 80) errors.senderName = 'Isi nama pengirim, maksimal 80 karakter.';
     if (!preview.isValidEmail(campaign.senderEmail)) errors.senderEmail = 'Masukkan alamat email pengirim yang valid.';
-    if (!recipientsFor(campaign).length) errors.recipients = 'Pilih minimal satu email penerima.';
+    if (!recipientsFor(campaign, options.recipients).length) errors.recipients = 'Pilih minimal satu email penerima.';
     Object.assign(errors, validateMessage(campaign.message || {}));
     Object.assign(errors, validatePeriod(campaign, !!options.schedule));
     if (options.schedule && (!Number.isFinite(parseSchedule(campaign.scheduledAt)) || parseSchedule(campaign.scheduledAt) <= (options.now ?? Date.now()))) errors.schedule = 'Pilih jadwal mendatang dalam zona waktu WIB.';

@@ -1,9 +1,14 @@
 'use strict';
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   if (!document.getElementById('templateWorkspace')) return;
   const core = window.AwarenessCampaigns, preview = window.AwarenessPreview, ui = window.AwarenessComposeUI;
-  let state = core.load(ui.storage), editingId = null, previewTimer, editingCategory = null, pendingCategoryDelete = null;
+  const api = window.AwarenessApi;
+  let state;
+  try { state = await api.library(); }
+  catch (error) { api.showLoadError(document.getElementById('templateWorkspace'), error.message); ui.find('createEmailTemplate').disabled = true; ui.find('manageTemplateCategories').disabled = true; return; }
+  const categoryId = name => state.categoryRecords.find(item => item.name === name)?.id;
+  let editingId = null, previewTimer, editingCategory = null, pendingCategoryDelete = null;
   const escape = preview.escapeHtml;
   const editorElement = ui.find('templateMessageEditor');
   const editorModal = bootstrap.Modal.getOrCreateInstance(ui.find('templateEditorModal'));
@@ -26,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     editorElement.classList.remove('border-danger');
   }
   function openEditor(item = null) {
-    state = core.load(ui.storage); renderCategoryChoices();
+    renderCategoryChoices();
     if (!state.categories.length) return;
     clearErrors(); editingId = item?.id || null;
     ui.find('templateEditorTitle').textContent = item ? 'Edit template email' : 'Buat template email';
@@ -74,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function refreshCategories() { renderCategoryChoices(); renderCategoryList(); renderGrid(); }
   ui.find('manageTemplateCategories').addEventListener('click', () => {
-    state = core.load(ui.storage); resetCategoryForm(); showCategoryList(); refreshCategories(); categoryModal.show();
+    resetCategoryForm(); showCategoryList(); refreshCategories(); categoryModal.show();
   });
   ui.find('templateCategoryModal').addEventListener('shown.bs.modal', () => ui.find('templateCategoryName').focus());
   ui.find('templateCategoryModal').addEventListener('hidden.bs.modal', () => { resetCategoryForm(); showCategoryList(); });
@@ -83,24 +88,23 @@ document.addEventListener('DOMContentLoaded', () => {
     ui.find('templateCategoryName').classList.remove('is-invalid');
     ui.find('templateCategoryNameError').textContent = '';
   });
-  ui.find('templateCategoryForm').addEventListener('submit', event => {
+  ui.find('templateCategoryForm').addEventListener('submit', async event => {
     event.preventDefault();
-    const next = core.load(ui.storage), previous = editingCategory;
-    let name;
+    const button = ui.find('saveTemplateCategory'); if (button.disabled) return;
+    button.disabled = true;
+    const previous = editingCategory;
     try {
-      name = previous === null ? core.addCategory(next, ui.find('templateCategoryName').value) : core.renameCategory(next, previous, ui.find('templateCategoryName').value);
+      const result = await api.request(api.urls.categories + (previous === null ? '' : '/' + categoryId(previous)), { method: previous === null ? 'POST' : 'PUT', data: { name: ui.find('templateCategoryName').value } });
+      state = await api.library();
+      if (ui.find('templateCategoryFilter').value === previous) {
+        ui.find('templateCategoryFilter').add(new Option(result.data.name, result.data.name)); ui.find('templateCategoryFilter').value = result.data.name;
+      }
+      resetCategoryForm(); refreshCategories(); ui.find('templateCategoryName').focus();
+      ui.notify(previous === null ? 'Kategori baru tersimpan.' : 'Nama kategori diperbarui.');
     } catch (error) {
       ui.find('templateCategoryName').classList.add('is-invalid');
-      ui.find('templateCategoryNameError').textContent = error.message;
-      ui.find('templateCategoryName').focus(); return;
-    }
-    if (!ui.persist(next)) return;
-    state = next;
-    if (ui.find('templateCategoryFilter').value === previous) {
-      ui.find('templateCategoryFilter').add(new Option(name, name)); ui.find('templateCategoryFilter').value = name;
-    }
-    resetCategoryForm(); refreshCategories(); ui.find('templateCategoryName').focus();
-    ui.notify(previous === null ? 'Kategori baru ditambahkan.' : 'Nama kategori dan kategori pada template diperbarui.');
+      ui.find('templateCategoryNameError').textContent = error.errors?.name || error.errors?.name_key || error.message;
+    } finally { button.disabled = false; }
   });
   ui.find('templateCategoryRows').addEventListener('click', event => {
     const button = event.target.closest('[data-category-action]');
@@ -135,14 +139,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (pendingCategoryDelete !== null) { showCategoryList(); ui.find('templateCategoryName').focus(); }
     else categoryModal.hide();
   });
-  ui.find('confirmCategoryDelete').addEventListener('click', () => {
-    if (pendingCategoryDelete === null) return;
-    const next = core.load(ui.storage);
-    try { core.removeCategory(next, pendingCategoryDelete, ui.find('categoryReplacement').value); }
-    catch (error) { ui.find('categoryActionError').textContent = error.message; ui.find('categoryActionError').classList.remove('d-none'); return; }
-    if (!ui.persist(next)) return;
-    state = next; resetCategoryForm(); showCategoryList(); refreshCategories(); ui.find('templateCategoryName').focus();
-    ui.notify('Kategori dihapus. Semua template email tetap tersimpan.');
+  ui.find('confirmCategoryDelete').addEventListener('click', async event => {
+    if (pendingCategoryDelete === null || event.currentTarget.disabled) return;
+    const button = event.currentTarget; button.disabled = true;
+    try {
+      await api.request(api.urls.categories + '/' + categoryId(pendingCategoryDelete), { method: 'DELETE', data: { replacement_id: categoryId(ui.find('categoryReplacement').value) || null } });
+      state = await api.library(); resetCategoryForm(); showCategoryList(); refreshCategories(); ui.find('templateCategoryName').focus();
+      ui.notify('Kategori dihapus. Semua template email tetap tersimpan.');
+    } catch (error) { ui.find('categoryActionError').textContent = error.message; ui.find('categoryActionError').classList.remove('d-none'); }
+    finally { button.disabled = false; }
   });
   function renderGrid() {
     const query = ui.find('templateSearch').value.trim().toLowerCase();
@@ -162,29 +167,36 @@ document.addEventListener('DOMContentLoaded', () => {
   ui.find('templateSubject').addEventListener('input', renderEditorPreview);
   ui.find('templateEditorModal').addEventListener('shown.bs.modal', () => ui.find('templateName').focus());
   ui.find('templateEditorModal').addEventListener('hidden.bs.modal', () => clearTimeout(previewTimer));
-  ui.find('templateEditorForm').addEventListener('submit', event => {
-    event.preventDefault(); clearErrors();
-    const item = { id: editingId || core.newId('template'), name: ui.find('templateName').value.trim(), category: ui.find('templateCategory').value, subject: ui.find('templateSubject').value.trim(), delta: core.normalizeDelta(editor.getContents()), updatedAt: new Date().toISOString() };
-    const next = core.load(ui.storage);
-    const errors = core.validateTemplate(item, next.categories);
+  function showTemplateErrors(errors) {
     const fields = { name: 'templateName', category: 'templateCategory', subject: 'templateSubject' };
     for (const [key, message] of Object.entries(errors)) {
-      document.querySelector('[data-template-error="' + key + '"]').textContent = message;
-      if (fields[key]) ui.find(fields[key]).classList.add('is-invalid');
+      const mapped = key === 'category_id' ? 'category' : key.startsWith('delta') ? 'body' : key;
+      const feedback = document.querySelector('[data-template-error="' + mapped + '"]');
+      if (feedback) feedback.textContent = message;
+      if (fields[mapped]) ui.find(fields[mapped]).classList.add('is-invalid');
       else editorElement.classList.add('border-danger');
     }
-    if (Object.keys(errors).length) { const first = Object.keys(fields).find(key => errors[key]); if (first) ui.find(fields[first]).focus(); else editor.focus(); return; }
-    const index = next.templates.findIndex(template => template.id === item.id);
-    if (index >= 0) next.templates[index] = item; else next.templates.unshift(item);
-    if (!ui.persist(next)) return;
-    ui.find('saveEmailTemplate').disabled = true; editingId = item.id; state = next;
-    renderGrid(); editorModal.hide(); ui.notify('Template email tersimpan di pratinjau dan siap dipilih pada simulasi.');
+  }
+  function templatePayload(item) { return { name: item.name, subject: item.subject, category_id: categoryId(item.category), delta: item.delta }; }
+  ui.find('templateEditorForm').addEventListener('submit', async event => {
+    event.preventDefault(); clearErrors();
+    const button = ui.find('saveEmailTemplate'); if (button.disabled) return;
+    const item = { name: ui.find('templateName').value.trim(), category: ui.find('templateCategory').value, subject: ui.find('templateSubject').value.trim(), delta: core.normalizeDelta(editor.getContents()) };
+    const errors = core.validateTemplate(item, state.categories);
+    if (Object.keys(errors).length) { showTemplateErrors(errors); return; }
+    button.disabled = true;
+    try {
+      await api.request(api.urls.templates + (editingId ? '/' + editingId : ''), { method: editingId ? 'PUT' : 'POST', data: templatePayload(item) });
+      state = await api.library(); renderGrid(); editorModal.hide(); ui.notify('Template email tersimpan dan siap dipilih pada simulasi.');
+    } catch (error) {
+      showTemplateErrors(error.errors || { body: error.message });
+    } finally { button.disabled = false; }
   });
   let busy = false;
   ui.find('templateGrid').addEventListener('click', async event => {
     const button = event.target.closest('[data-template-action]');
     if (!button || busy) return;
-    const latest = core.load(ui.storage);
+    const latest = state;
     const item = latest.templates.find(template => template.id === button.dataset.id);
     if (!item) { ui.notify('Template tidak ditemukan. Muat ulang halaman untuk memperbarui daftar.'); return; }
     const action = button.dataset.templateAction;
@@ -193,14 +205,15 @@ document.addEventListener('DOMContentLoaded', () => {
     busy = true;
     try {
       if (action === 'duplicate') {
-        const copy = { ...core.clone(item), id: core.newId('template'), name: ('Salinan ' + item.name).slice(0, 100), updatedAt: new Date().toISOString() };
-        latest.templates.unshift(copy);
-        if (ui.persist(latest)) { state = latest; renderGrid(); openEditor(copy); }
-      } else if (action === 'delete' && await ui.confirmAction('Hapus template email?', `Hapus “${item.name}” dari koleksi? Simulasi tersimpan tetap memakai salinan emailnya sendiri.`)) {
-        latest.templates = latest.templates.filter(template => template.id !== item.id);
-        if (ui.persist(latest)) { state = latest; renderGrid(); ui.notify('Template dihapus dari koleksi pratinjau.'); }
+        const copy = { ...item, name: ('Salinan ' + item.name).slice(0, 100) };
+        const result = await api.request(api.urls.templates, { method: 'POST', data: templatePayload(copy) });
+        state = await api.library(); renderGrid(); openEditor(result.data);
+      } else if (action === 'delete' && await ui.confirmAction('Hapus template email?', 'Hapus “' + item.name + '” dari koleksi? Simulasi tersimpan tetap memakai salinan emailnya sendiri.')) {
+        await api.request(api.urls.templates + '/' + item.id, { method: 'DELETE' });
+        state = await api.library(); renderGrid(); ui.notify('Template dihapus dari koleksi.');
       }
-    } finally { busy = false; }
+    } catch (error) { ui.notify(error.message); }
+    finally { busy = false; }
   });
   renderCategoryChoices(); renderGrid();
 });

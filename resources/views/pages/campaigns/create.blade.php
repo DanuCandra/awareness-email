@@ -7,7 +7,7 @@
             <div><h4 class="mb-1" id="campaignFormTitle">Buat simulasi</h4><p class="mb-0 text-body-secondary">Lengkapi detail, penerima, dan pesan sebelum meninjau simulasi.</p></div>
             <div class="d-flex flex-wrap gap-3"><a href="{{ route('campaigns.index') }}" class="btn btn-label-secondary">Kembali</a><button type="button" class="btn btn-label-primary" id="saveCampaignDraft"><i class="icon-base ti tabler-device-floppy icon-sm me-2" aria-hidden="true"></i>Simpan draf</button></div>
         </div>
-        <div class="alert alert-primary mb-6" role="note"><span class="fw-medium">Mode pratinjau.</span> Data disimpan sementara di tab ini. Menjadwalkan pratinjau tidak mengirim email.</div>
+        <div class="alert alert-primary mb-6" role="note"><span class="fw-medium">Persiapan simulasi.</span> Periksa penerima, pesan, dan batas evaluasi sebelum menjadwalkan pengiriman email.</div>
         <div class="alert alert-danger d-none" id="wizardUnavailable" role="alert"></div>
         <div class="card" id="wizardWorkspace">
             <div class="bs-stepper wizard-numbered compose-wizard" id="campaignWizard">
@@ -20,7 +20,7 @@
                 <div class="bs-stepper-content p-6">
                     <div class="alert alert-danger d-none" id="wizardAlert" role="alert"></div>
                     <div class="content active" id="campaignStep0" data-wizard-panel="0">
-                        <h5 class="mb-1">Detail simulasi</h5><p class="text-body-secondary mb-6">Tentukan identitas simulasi dan pengirim email.</p>
+                        <div class="alert alert-warning d-none" id="wizardSmtpNotice">Pengirim belum dikonfigurasi. <a class="alert-link" href="{{ route('settings.index', ['section' => 'smtp']) }}">Lengkapi pengaturan SMTP</a> untuk menggunakan email pengirim perusahaan.</div><h5 class="mb-1">Detail simulasi</h5><p class="text-body-secondary mb-6">Tentukan identitas simulasi dan pengirim email.</p>
                         <div class="row g-5">
                             <div class="col-12"><label for="campaignName" class="form-label">Nama simulasi <span class="text-danger">*</span></label><input type="text" class="form-control" id="campaignName" maxlength="120" placeholder="Contoh: Simulasi Kenaikan Gaji PT AST INDONESIA 2027"><div class="invalid-feedback" data-field-error="name"></div></div>
                             <div class="col-12"><label for="campaignDescription" class="form-label">Deskripsi</label><textarea class="form-control" id="campaignDescription" rows="3" maxlength="500" placeholder="Tujuan atau catatan singkat simulasi"></textarea></div>
@@ -32,13 +32,13 @@
                         </div>
                     </div>
                     <div class="content" id="campaignStep1" data-wizard-panel="1" hidden>
-                        <h5 class="mb-1">Pilih penerima</h5><p class="text-body-secondary mb-6">Gunakan seluruh daftar contoh atau pilih email tertentu.</p>
+                        <div class="alert alert-warning d-none" id="recipientEmptyNotice">Belum ada email penerima. <a href="{{ route('emails.index') }}" class="alert-link">Tambahkan atau impor email</a> sebelum menjadwalkan simulasi.</div><h5 class="mb-1">Pilih penerima</h5><p class="text-body-secondary mb-6">Gunakan seluruh daftar email atau pilih penerima tertentu.</p>
                         <div class="row g-4">
-                            <div class="col-md-6"><div class="form-check custom-option custom-option-basic"><label class="form-check-label custom-option-content" for="campaignRecipientAll"><input class="form-check-input" type="radio" id="campaignRecipientAll" name="campaignRecipientMode" value="all" checked><span class="custom-option-header"><span class="h6 mb-0">Semua email</span><span class="text-body-secondary">480 email</span></span><span class="custom-option-body"><small>Seluruh alamat email dalam daftar contoh.</small></span></label></div></div>
+                            <div class="col-md-6"><div class="form-check custom-option custom-option-basic"><label class="form-check-label custom-option-content" for="campaignRecipientAll"><input class="form-check-input" type="radio" id="campaignRecipientAll" name="campaignRecipientMode" value="all" checked><span class="custom-option-header"><span class="h6 mb-0">Semua email</span><span class="text-body-secondary" id="allRecipientCount">0 email</span></span><span class="custom-option-body"><small>Seluruh alamat email dalam daftar penerima.</small></span></label></div></div>
                             <div class="col-md-6"><div class="form-check custom-option custom-option-basic"><label class="form-check-label custom-option-content" for="campaignRecipientSelected"><input class="form-check-input" type="radio" id="campaignRecipientSelected" name="campaignRecipientMode" value="selected"><span class="custom-option-header"><span class="h6 mb-0">Pilih email tertentu</span></span><span class="custom-option-body"><small>Cari dan tandai penerima sesuai kebutuhan.</small></span></label></div></div>
                         </div>
                         <div class="small text-danger mt-3" data-field-error="recipients"></div>
-                        <div class="d-flex align-items-center gap-2 mt-5"><span class="badge bg-label-primary" id="selectedRecipientTotal">480</span><span class="text-body-secondary">email penerima terpilih</span></div>
+                        <div class="d-flex align-items-center gap-2 mt-5"><span class="badge bg-label-primary" id="selectedRecipientTotal">0</span><span class="text-body-secondary">email penerima terpilih</span></div>
                         <div class="mt-6" id="recipientSelectionPanel" hidden>
                             <div class="row g-3 align-items-end mb-4"><div class="col-md-6"><label for="wizardRecipientSearch" class="form-label">Cari email</label><input type="search" class="form-control" id="wizardRecipientSearch" placeholder="Cari alamat email…"></div><div class="col-md-6 d-flex flex-wrap justify-content-md-end gap-2"><button type="button" class="btn btn-label-primary btn-sm" id="selectFilteredRecipients">Pilih hasil pencarian</button><button type="button" class="btn btn-label-secondary btn-sm" id="clearCampaignRecipients">Kosongkan pilihan</button></div></div>
                             <div class="table-responsive border rounded"><table class="table" id="wizardRecipientTable"><thead><tr><th><input type="checkbox" class="form-check-input" id="selectRecipientPage" aria-label="Pilih semua email pada halaman ini"></th><th>Email penerima</th><th>Sumber</th></tr></thead><tbody></tbody></table></div>

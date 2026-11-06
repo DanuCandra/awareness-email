@@ -18,33 +18,39 @@ document.addEventListener('DOMContentLoaded', () => {
     return { primary: value('primary'), secondary: value('secondary'), muted: value('secondary-color'), heading: value('heading-color'), border: value('border-color'), paper: value('paper-bg'), font: styles.fontFamily, mode: document.documentElement.getAttribute('data-bs-theme') };
   }
 
-  const colors = palette();
-  const activityChart = new ApexCharts(document.getElementById('clickActivityChart'), {
-    chart: { type: 'bar', height: 265, toolbar: { show: false }, fontFamily: colors.font, foreColor: colors.muted, animations: { enabled: !window.matchMedia('(prefers-reduced-motion: reduce)').matches } },
-    series: [{ name: 'Penerima unik', data: selected.hourly }],
-    colors: [colors.primary],
-    plotOptions: { bar: { borderRadius: 5, columnWidth: '35%', borderRadiusApplication: 'end' } },
-    dataLabels: { enabled: false },
-    grid: { borderColor: colors.border, strokeDashArray: 4, padding: { left: 8, right: 10 } },
-    xaxis: { categories: ['09.00', '10.00', '11.00', '12.00', '13.00', '14.00'], axisBorder: { show: false }, axisTicks: { show: false } },
-    yaxis: { min: 0, forceNiceScale: true, decimalsInFloat: 0, title: { text: 'Penerima unik', style: { color: colors.muted, fontWeight: 400 } } },
-    tooltip: { theme: colors.mode, y: { formatter: value => value + ' penerima' } },
-    responsive: [{ breakpoint: 576, options: { chart: { height: 240 }, plotOptions: { bar: { columnWidth: '50%' } } } }]
-  });
+  function createActivityChart() {
+    const colors = palette();
+    return new ApexCharts(document.getElementById('clickActivityChart'), {
+      chart: { type: 'bar', height: 265, toolbar: { show: false }, fontFamily: colors.font, foreColor: colors.muted, animations: { enabled: !window.matchMedia('(prefers-reduced-motion: reduce)').matches } },
+      series: [{ name: 'Penerima unik', data: selected.hourly }],
+      colors: [colors.primary],
+      plotOptions: { bar: { borderRadius: 5, columnWidth: '35%', borderRadiusApplication: 'end' } },
+      dataLabels: { enabled: false },
+      grid: { borderColor: colors.border, strokeDashArray: 4, padding: { left: 8, right: 10 } },
+      xaxis: { categories: ['09.00', '10.00', '11.00', '12.00', '13.00', '14.00'], axisBorder: { show: false }, axisTicks: { show: false } },
+      yaxis: { min: 0, forceNiceScale: true, decimalsInFloat: 0, title: { text: 'Penerima unik', style: { color: colors.muted, fontWeight: 400 } } },
+      tooltip: { theme: colors.mode, y: { formatter: value => value + ' penerima' } },
+      responsive: [{ breakpoint: 576, options: { chart: { height: 240 }, plotOptions: { bar: { columnWidth: '50%' } } } }]
+    });
 
-  const responseChart = new ApexCharts(document.getElementById('recipientResponseChart'), {
-    chart: { type: 'donut', height: 220, fontFamily: colors.font, animations: { enabled: !window.matchMedia('(prefers-reduced-motion: reduce)').matches } },
-    series: [selected.clicked, preview.metrics(selected).unclicked],
-    yaxis: [],
-    labels: ['Diakses', 'Belum diakses'],
-    colors: [colors.primary, colors.border],
-    stroke: { width: 0 },
-    legend: { show: false },
-    dataLabels: { enabled: false },
-    tooltip: { theme: colors.mode, y: { formatter: value => value + ' penerima' } },
-    plotOptions: { pie: { expandOnClick: false, donut: { size: '78%', labels: { show: true, name: { show: true, offsetY: 22, color: colors.muted, fontSize: '13px' }, value: { offsetY: -12, color: colors.heading, fontSize: '28px', fontWeight: 500, formatter: value => numberFormat.format(Number(value)) }, total: { show: true, showAlways: true, label: 'Tingkat klik', color: colors.muted, formatter: () => rateFormat.format(preview.metrics(selected).rate) + '%' } } } } }
-  });
+  }
+  function createResponseChart() {
+    const colors = palette();
+    return new ApexCharts(document.getElementById('recipientResponseChart'), {
+      chart: { type: 'donut', height: 220, fontFamily: colors.font, animations: { enabled: !window.matchMedia('(prefers-reduced-motion: reduce)').matches } },
+      series: [selected.clicked, preview.metrics(selected).unclicked],
+      yaxis: [],
+      labels: ['Diakses', 'Belum diakses'],
+      colors: [colors.primary, colors.border],
+      stroke: { width: 0 },
+      legend: { show: false },
+      dataLabels: { enabled: false },
+      tooltip: { theme: colors.mode, y: { formatter: value => value + ' penerima' } },
+      plotOptions: { pie: { expandOnClick: false, donut: { size: '78%', labels: { show: true, name: { show: true, offsetY: 22, color: colors.muted, fontSize: '13px' }, value: { offsetY: -12, color: colors.heading, fontSize: '28px', fontWeight: 500, formatter: value => numberFormat.format(Number(value)) }, total: { show: true, showAlways: true, label: 'Tingkat klik', color: colors.muted, formatter: () => rateFormat.format(preview.metrics(selected).rate) + '%' } } } } }
+    });
 
+  }
+  let activityChart = createActivityChart(), responseChart = createResponseChart();
   let updatePending = false, updating = false, appliedSignature = '';
   function updateCharts() {
     if (!chartsReady) return;
@@ -60,10 +66,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const theme = palette();
         const signature = JSON.stringify([selected.id, theme.primary, theme.border, theme.muted, theme.heading, theme.mode]);
         if (signature === appliedSignature) continue;
-        await Promise.all([
-          activityChart.updateOptions({ colors: [theme.primary], series: [{ name: 'Penerima unik', data: selected.hourly }], chart: { foreColor: theme.muted }, grid: { borderColor: theme.border }, yaxis: { min: 0, forceNiceScale: true, decimalsInFloat: 0, title: { text: 'Penerima unik', style: { color: theme.muted, fontWeight: 400 } } }, tooltip: { theme: theme.mode } }, false, false),
-          responseChart.updateOptions({ colors: [theme.primary, theme.border], series: [selected.clicked, preview.metrics(selected).unclicked], tooltip: { theme: theme.mode }, plotOptions: { pie: { donut: { labels: { name: { color: theme.muted }, value: { color: theme.heading }, total: { color: theme.muted } } } } } }, false, false)
-        ]);
+        activityChart.destroy(); responseChart.destroy();
+        activityChart = createActivityChart(); responseChart = createResponseChart();
+        await Promise.all([activityChart.render(), responseChart.render()]);
         appliedSignature = signature;
       }
     } catch (error) {
@@ -102,6 +107,6 @@ document.addEventListener('DOMContentLoaded', () => {
     renderCampaign();
   });
   renderCampaign();
-  Promise.all([activityChart.render(), responseChart.render()]).then(() => { chartsReady = true; updateCharts(); });
+  Promise.all([activityChart.render(), responseChart.render()]).then(() => { const theme = palette(); appliedSignature = JSON.stringify([selected.id, theme.primary, theme.border, theme.muted, theme.heading, theme.mode]); chartsReady = true; updateCharts(); }).catch(error => console.error('Grafik awareness gagal dimuat:', error));
   new MutationObserver(updateCharts).observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme', 'style', 'data-skin'] });
 });

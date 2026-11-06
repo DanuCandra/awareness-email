@@ -27,6 +27,12 @@
 @auth
     @php($authenticatedAdmin = auth()->user()->only(['id', 'name', 'username', 'email']))
     <script type="application/json" id="authenticated-admin">@json($authenticatedAdmin)</script>
+    @php($masterEndpoints = ['emails' => route('emails.index'), 'bulkEmails' => route('emails.bulk-destroy'), 'importPreview' => route('emails.import.preview'), 'importCommit' => route('emails.import.commit'), 'templates' => route('email-templates.index'), 'categories' => route('template-categories.store'), 'login' => route('login'), 'simulations' => route('campaigns.index')])
+    <script type="application/json" id="master-endpoints">@json($masterEndpoints)</script>
+    @php($settingsEndpoints = ['settings' => route('settings.index'), 'connection' => route('settings.smtp.connection'), 'testEmail' => route('settings.smtp.email')])
+    <script type="application/json" id="settings-endpoints">@json($settingsEndpoints)</script>
+    <script type="application/json" id="workspace-settings">@json($workspaceSettings)</script>
+    <script src="{{ asset('assets/js/awareness-api.js') }}"></script>
 @endauth
 <script src="{{ asset('assets/js/layout.js') }}"></script>
 @stack('scripts')

@@ -65,7 +65,7 @@ window.AwarenessComposeUI = (() => {
     container.querySelector('[data-preview-subject]').textContent = message.subject || 'Subjek email';
     const sender = window.AwarenessSettings.load(storage).smtp;
     container.querySelector('[data-preview-sender]').textContent = context.senderName || sender.fromName;
-    container.querySelector('[data-preview-sender-email]').textContent = context.senderEmail || sender.fromEmail;
+    container.querySelector('[data-preview-sender-email]').textContent = context.senderEmail || sender.fromEmail || 'Email pengirim belum diatur';
     container.querySelector('[data-preview-recipient]').textContent = context.email || 'karyawan001@perusahaan.example';
     const accent = getComputedStyle(document.documentElement).getPropertyValue('--bs-primary').trim();
     container.querySelector('iframe').srcdoc = core.emailDocument(message.delta, context, accent);

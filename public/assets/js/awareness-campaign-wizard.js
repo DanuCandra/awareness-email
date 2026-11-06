@@ -1,12 +1,26 @@
 'use strict';
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const root = document.getElementById('campaignComposer');
   if (!root) return;
   const core = window.AwarenessCampaigns, preview = window.AwarenessPreview, ui = window.AwarenessComposeUI, settings = window.AwarenessSettings;
-  const state = core.load(ui.storage);
+  const state = { templates: [], categories: [] };
   const editId = new URLSearchParams(window.location.search).get('edit');
-  const existing = editId ? state.campaigns.find(item => item.id === editId) : null;
+  const clientToken = window.AwarenessApi.newRequestToken();
+  let existing = null;
+  const api = window.AwarenessApi;
+  let recipients;
+  ui.find('wizardWorkspace').hidden = true; ui.find('saveCampaignDraft').disabled = true;
+  try {
+    const [library, emails, saved] = await Promise.all([api.library(), api.request(api.urls.emails), editId ? api.request(api.urls.simulations + '/' + encodeURIComponent(editId)) : null]);
+    existing = saved?.data || null;
+    state.templates = library.templates; state.categories = library.categories; recipients = emails.data;
+  } catch (error) { api.showLoadError(root, error.message); return; }
+  ui.find('wizardWorkspace').hidden = false; ui.find('saveCampaignDraft').disabled = false;
+  ui.find('allRecipientCount').textContent = recipients.length + ' email';
+  if (!recipients.length) {
+    ui.find('recipientEmptyNotice').classList.remove('d-none');
+  }
   if (editId && (!existing || existing.status !== 'draft')) {
     ui.find('wizardUnavailable').textContent = existing ? 'Simulasi ini tidak dapat diedit. Gunakan duplikat untuk membuat draf baru.' : 'Draf simulasi tidak ditemukan.';
     ui.find('wizardUnavailable').classList.remove('d-none'); ui.find('wizardWorkspace').hidden = true; ui.find('saveCampaignDraft').disabled = true; return;
@@ -15,7 +29,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let appliedTemplateId = existing?.templateId || state.templates[0]?.id || '';
   const firstTemplate = state.templates.find(item => item.id === appliedTemplateId);
   if (!firstTemplate) appliedTemplateId = '';
-  const selected = new Set(existing?.recipientIds || []);
+  const availableIds = new Set(recipients.map(row => row.id));
+  const selected = new Set((existing?.recipientRegistry ? existing.recipientIds : []).filter(id => availableIds.has(id)));
   const fields = { name: 'campaignName', senderName: 'campaignSenderName', senderEmail: 'campaignSenderEmail', schedule: 'campaignSchedule', endsAt: 'campaignEndsAt', subject: 'campaignSubject' };
   ui.find('campaignFormTitle').textContent = existing ? 'Edit draf simulasi' : 'Buat simulasi';
   ui.find('campaignName').value = existing?.name || '';
@@ -23,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const sender = settings.campaignSender(settings.load(ui.storage), existing || {});
   ui.find('campaignSenderName').value = sender.senderName;
   ui.find('campaignSenderEmail').value = sender.senderEmail;
+  ui.find('wizardSmtpNotice').classList.toggle('d-none', !!settings.load(ui.storage).smtp.configured);
   ui.find('campaignSenderUpdated').classList.toggle('d-none', !existing || existing.senderEmail === sender.senderEmail);
   ui.find('campaignSchedule').value = existing?.scheduledAt || '';
   ui.find('campaignEndsAt').value = existing?.endsAt || '';
@@ -57,9 +73,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentStep === 3) ui.paintPreview(ui.find('campaignReviewPreview'), form.message, context);
   }
   ui.find('campaignSubject').addEventListener('input', renderMail);
-  window.addEventListener('focus', renderMail);
+  window.addEventListener('focus', async () => {
+    const previous = settings.load(ui.storage).smtp.fromName;
+    try {
+      const response = await api.request(api.urls.settings); api.setSettings(response.data);
+      if (ui.find('campaignSenderName').value === previous) ui.find('campaignSenderName').value = response.data.smtp.fromName;
+      renderMail();
+    } catch (error) { ui.notify(error.message); }
+  });
   const recipientTable = new DataTable(ui.find('wizardRecipientTable'), {
-    data: preview.createRecipients(),
+    data: recipients,
     columns: [
       { data: 'id', orderable: false, searchable: false, render: id => `<input type="checkbox" class="form-check-input" data-wizard-recipient="${id}" aria-label="Pilih penerima">` },
       { data: 'email', render: (email, type) => type === 'display' ? preview.escapeHtml(email) : email },
@@ -70,7 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function syncRecipients() {
     const all = ui.find('campaignRecipientAll').checked;
     ui.find('recipientSelectionPanel').hidden = all;
-    ui.find('selectedRecipientTotal').textContent = all ? 480 : selected.size;
+    ui.find('selectedRecipientTotal').textContent = all ? recipients.length : selected.size;
     root.querySelectorAll('[data-wizard-recipient]').forEach(input => { input.checked = selected.has(Number(input.dataset.wizardRecipient)); });
     const page = recipientTable.rows({ page: 'current', search: 'applied' }).data().toArray();
     const checked = page.filter(item => selected.has(item.id)).length;
@@ -107,13 +130,13 @@ document.addEventListener('DOMContentLoaded', () => {
     root.querySelectorAll('[data-wizard-header]').forEach(header => { header.classList.toggle('active', Number(header.dataset.wizardHeader) === index); header.classList.toggle('crossed', Number(header.dataset.wizardHeader) < index); });
     root.querySelectorAll('[data-wizard-step]').forEach(button => { if (Number(button.dataset.wizardStep) === index) button.setAttribute('aria-current', 'step'); else button.removeAttribute('aria-current'); });
     ui.find('wizardPrevious').textContent = index === 0 ? 'Kembali ke daftar' : 'Sebelumnya';
-    ui.find('wizardNext').textContent = index === 3 ? 'Jadwalkan pratinjau' : 'Lanjutkan →';
+    ui.find('wizardNext').textContent = index === 3 ? 'Jadwalkan simulasi' : 'Lanjutkan →';
     if (index === 1) requestAnimationFrame(() => recipientTable.columns.adjust().draw(false));
     if (index === 3) {
       const form = readForm();
       ui.find('reviewCampaignName').textContent = form.name;
       ui.find('reviewCampaignSender').textContent = form.senderName + ' <' + form.senderEmail + '>';
-      ui.find('reviewCampaignRecipients').textContent = core.recipientsFor(form).length + ' email · ' + (form.recipientMode === 'all' ? 'Seluruh daftar contoh' : 'Pilihan khusus');
+      ui.find('reviewCampaignRecipients').textContent = core.recipientsFor(form, recipients).length + ' email · ' + (form.recipientMode === 'all' ? 'Seluruh daftar email' : 'Pilihan khusus');
       ui.find('reviewCampaignSchedule').textContent = core.scheduleLabel(form.scheduledAt);
       ui.find('reviewCampaignEndsAt').textContent = core.scheduleLabel(form.endsAt);
       ui.find('reviewCampaignSubject').textContent = form.message.subject;
@@ -124,7 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function goToStep(target) {
     clearErrors();
     if (target > currentStep) {
-      const errors = core.validateCampaign(readForm());
+      const errors = core.validateCampaign(readForm(), { recipients });
       for (let index = 0; index < target; index++) {
         const stageErrors = Object.fromEntries(Object.entries(errors).filter(([key]) => stageKeys[index]?.includes(key)));
         if (Object.keys(stageErrors).length) { showStep(index); showErrors(stageErrors); return; }
@@ -135,27 +158,31 @@ document.addEventListener('DOMContentLoaded', () => {
   root.querySelectorAll('[data-wizard-step]').forEach(button => button.addEventListener('click', () => goToStep(Number(button.dataset.wizardStep))));
   ui.find('wizardPrevious').addEventListener('click', () => currentStep === 0 ? window.location.assign(root.dataset.indexUrl) : goToStep(currentStep - 1));
 
-  function saveCampaign(status) {
+  async function saveCampaign(status) {
     if (saving) return;
     const form = readForm();
-    const errors = status === 'draft' ? Object.assign(core.validatePeriod(form), (!form.name || form.name.length > 120 ? { name: 'Isi nama simulasi, maksimal 120 karakter.' } : {})) : core.validateCampaign(form, { schedule: true });
+    const errors = status === 'draft' ? Object.assign(core.validatePeriod(form), (!form.name || form.name.length > 120 ? { name: 'Isi nama simulasi, maksimal 120 karakter.' } : {})) : core.validateCampaign(form, { schedule: true, recipients });
     if (Object.keys(errors).length) {
       const index = errors.name || errors.senderName || errors.senderEmail || errors.schedule || errors.endsAt ? 0 : errors.recipients ? 1 : 2;
       showStep(index); showErrors(errors); return;
     }
     saving = true; ui.find('saveCampaignDraft').disabled = true; ui.find('wizardNext').disabled = true;
-    const latest = core.load(ui.storage);
-    const id = existing?.id || core.newId('campaign');
-    const item = { ...form, id, status, recipientIds: core.recipientsFor(form), target: core.recipientsFor(form).length, sent: 0, clicked: 0, updatedAt: new Date().toISOString() };
-    const index = latest.campaigns.findIndex(campaign => campaign.id === id);
-    if (existing && (index < 0 || latest.campaigns[index].status !== 'draft')) {
+    try {
+      const response = await api.request(api.urls.simulations + (existing ? '/' + existing.id : ''), { method: existing ? 'PUT' : 'POST', data: { ...form, status, clientToken } });
+      const target = new URL(root.dataset.detailUrl); target.searchParams.set('id', response.data.id); target.searchParams.set('saved', status); window.location.assign(target.href);
+    } catch (error) {
+      const mapped = {};
+      for (const [key, message] of Object.entries(error.errors || {})) {
+        const target = key === 'scheduledAt' ? 'schedule' : key.startsWith('recipient') ? 'recipients' : key === 'message.subject' ? 'subject' : key.startsWith('message.delta') ? 'body' : key;
+        if (['name', 'senderName', 'senderEmail', 'schedule', 'endsAt', 'recipients', 'subject', 'body'].includes(target)) mapped[target] = message;
+      }
+      if (Object.keys(mapped).length) {
+        const index = mapped.name || mapped.senderName || mapped.senderEmail || mapped.schedule || mapped.endsAt ? 0 : mapped.recipients ? 1 : 2;
+        showStep(index); showErrors(mapped);
+      }
+      ui.notify(error.message);
       saving = false; ui.find('saveCampaignDraft').disabled = false; ui.find('wizardNext').disabled = false;
-      ui.notify('Draf ini sudah berubah. Kembali ke daftar simulasi untuk membuka versi terbaru.'); return;
     }
-    if (index >= 0) latest.campaigns[index] = item; else latest.campaigns.unshift(item);
-    if (ui.persist(latest)) {
-      const target = new URL(root.dataset.detailUrl); target.searchParams.set('id', id); target.searchParams.set('saved', status); window.location.assign(target.href);
-    } else { saving = false; ui.find('saveCampaignDraft').disabled = false; ui.find('wizardNext').disabled = false; }
   }
   ui.find('saveCampaignDraft').addEventListener('click', () => saveCampaign('draft'));
   ui.find('wizardNext').addEventListener('click', () => currentStep === 3 ? saveCampaign('scheduled') : goToStep(currentStep + 1));

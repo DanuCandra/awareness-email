@@ -3,10 +3,11 @@
 document.addEventListener('DOMContentLoaded', () => {
   const root = document.getElementById('settingsWorkspace');
   if (!root) return;
-  const settings = window.AwarenessSettings, preview = window.AwarenessPreview, ui = window.AwarenessComposeUI;
+  const settings = window.AwarenessSettings, preview = window.AwarenessPreview, ui = window.AwarenessComposeUI, api = window.AwarenessApi;
+  const saving = new Set(); let testing = false;
   let state = settings.load(ui.storage), logo = state.identity.logo, logoReadId = 0, testMode = 'connection';
   const escape = preview.escapeHtml;
-  const field = (section, key) => root.querySelector('[data-setting="' + section + '.' + key + '"]');
+  const field = (section, key) => section === 'smtp' && key === 'password' ? ui.find('settingsSmtpPassword') : root.querySelector('[data-setting="' + section + '.' + key + '"]');
   const form = section => root.querySelector('[data-section="' + section + '"]');
   const testModal = bootstrap.Modal.getOrCreateInstance(ui.find('settingsTestModal'));
   const landingModal = bootstrap.Modal.getOrCreateInstance(ui.find('settingsLandingModal'));
@@ -15,11 +16,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const value = { ...state[section] };
     form(section).querySelectorAll('[data-setting]').forEach(input => { value[input.dataset.setting.split('.')[1]] = input.value.trim(); });
     if (section === 'identity') value.logo = logo;
+    if (section === 'smtp') value.password = ui.find('settingsSmtpPassword').value;
     return value;
   }
   function clearPassword() {
     ui.find('settingsSmtpPassword').value = ''; ui.find('settingsSmtpPassword').type = 'password';
     ui.find('toggleSettingsPassword').setAttribute('aria-pressed', 'false'); ui.find('toggleSettingsPassword').setAttribute('aria-label', 'Tampilkan password');
+    paintHelpers();
   }
   function clearErrors(section) {
     form(section).querySelectorAll('.is-invalid').forEach(input => { input.classList.remove('is-invalid'); input.setAttribute('aria-invalid', 'false'); });
@@ -40,8 +43,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (logo) ui.find('settingsLogoImage').src = logo; else ui.find('settingsLogoImage').removeAttribute('src');
     ui.find('removeSettingsLogo').disabled = !logo;
   }
+  function smtpDirty() {
+    return [...form('smtp').querySelectorAll('[data-setting]')].some(input => input.value.trim() !== String(state.smtp[input.dataset.setting.split('.')[1]] ?? '').trim()) || !!ui.find('settingsSmtpPassword').value;
+  }
   function paintHelpers() {
     const smtp = readSection('smtp');
+    const dirty = smtpDirty(), blocked = dirty || !state.smtp.configured || saving.has('smtp') || testing;
+    ui.find('testSettingsConnection').disabled = blocked; ui.find('testSettingsEmail').disabled = blocked;
+    ui.find('settingsTestHint').textContent = dirty ? 'Simpan perubahan SMTP sebelum menjalankan pengujian.' : !state.smtp.configured ? 'Lengkapi dan simpan konfigurasi SMTP beserta password untuk menguji koneksi.' : 'Pengujian menggunakan konfigurasi SMTP yang tersimpan.';
+    const badge = ui.find('settingsConnectionStatus');
+    badge.textContent = dirty ? 'Belum disimpan' : !state.smtp.configured ? 'Belum dikonfigurasi' : state.smtp.connectionSuccessful === true ? 'Koneksi berhasil' : state.smtp.connectionSuccessful === false ? 'Koneksi gagal' : 'Belum diuji';
+    badge.className = 'badge bg-label-' + (dirty || !state.smtp.configured ? 'secondary' : state.smtp.connectionSuccessful === true ? 'success' : state.smtp.connectionSuccessful === false ? 'danger' : 'secondary');
+    ui.find('settingsConnectionChecked').textContent = state.smtp.connectionCheckedAt ? 'Terakhir diuji ' + preview.formatDate(state.smtp.connectionCheckedAt, true) : '';
     const interval = Number(smtp.sendIntervalSeconds);
     ui.find('settingsIntervalPreview').textContent = /^\d+$/.test(String(smtp.sendIntervalSeconds)) && Number.isSafeInteger(interval) && interval >= 0 ? interval === 0 ? 'Pengiriman tanpa jeda tambahan (0 detik).' : 'Jeda antar proses pengiriman: ' + interval.toLocaleString('id-ID') + ' detik. Email pertama mengikuti jadwal simulasi.' : 'Masukkan jeda berupa bilangan bulat 0 atau lebih.';
     ui.find('settingsSenderPreview').textContent = (smtp.fromName || 'Nama pengirim') + ' <' + (smtp.fromEmail || 'email-pengirim@example.com') + '>';
@@ -49,7 +62,8 @@ document.addEventListener('DOMContentLoaded', () => {
     ui.find('settingsEducationTips').hidden = field('landing', 'type').value !== 'education';
   }
   function paintSaved() {
-    ui.find('settingsSavedSender').textContent = state.smtp.fromEmail;
+    ui.find('settingsSavedSender').textContent = state.smtp.fromEmail || 'Belum diatur';
+    ui.find('settingsPasswordStatus').textContent = state.smtp.passwordConfigured ? 'Password tersimpan terenkripsi. Kosongkan untuk mempertahankannya; isi untuk mengganti.' : 'Password SMTP belum disimpan. Isi password sesuai penyedia mail server.';
     ui.find('settingsUpdated').textContent = Number.isFinite(Date.parse(state.updatedAt)) ? 'Disimpan ' + preview.formatDate(state.updatedAt, true) : 'Belum ada perubahan tersimpan.';
   }
   function fillSection(section) {
@@ -61,18 +75,20 @@ document.addEventListener('DOMContentLoaded', () => {
   root.querySelectorAll('.settings-form').forEach(element => {
     const section = element.dataset.section;
     fillSection(section);
-    element.addEventListener('submit', event => {
-      event.preventDefault();
-      const result = settings.saveSection(ui.storage, section, readSection(section), new Date().toISOString());
-      if (!result.saved) {
-        showErrors(section, result.errors);
-        if (result.storageError) ui.notify('Pengaturan belum tersimpan. Penyimpanan sementara browser tidak tersedia atau penuh.');
-        return;
-      }
-      state = result.value; fillSection(section); paintHelpers(); paintSaved();
-      ui.notify(section === 'smtp' ? 'Pengaturan SMTP tersimpan di pratinjau. Email pengirim simulasi baru dan draf yang dibuka mengikuti pengaturan ini.' : 'Pengaturan bagian ini tersimpan sementara di tab browser.');
+    element.addEventListener('submit', async event => {
+      event.preventDefault(); if (saving.has(section)) return;
+      const values = readSection(section), errors = settings.validate(section, values);
+      showErrors(section, errors); if (Object.keys(errors).length) return;
+      saving.add(section); const button = element.querySelector('[type="submit"]'); button.disabled = true; paintHelpers();
+      try {
+        const response = await api.request(api.urls.settings + '/' + section, { method: 'PUT', data: values });
+        api.setSettings(response.data); state = settings.load(ui.storage); fillSection(section); paintSaved();
+        ui.notify(section === 'smtp' ? 'Pengaturan SMTP tersimpan. Pengirim simulasi mengikuti pengaturan ini.' : 'Pengaturan tersimpan.');
+      } catch (error) { showErrors(section, error.errors || {}); ui.notify(error.message); }
+      finally { saving.delete(section); button.disabled = false; paintHelpers(); }
     });
     element.querySelector('[data-settings-discard]').addEventListener('click', () => {
+      if (saving.has(section)) return;
       state = settings.load(ui.storage); fillSection(section); paintHelpers(); paintSaved(); ui.notify('Isian dikembalikan ke pengaturan yang tersimpan.');
     });
     element.addEventListener('input', event => {
@@ -81,6 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const feedback = element.querySelector('[data-setting-error="' + event.target.dataset.setting + '"]');
         if (feedback) feedback.textContent = '';
       }
+      if (event.target.id === 'settingsSmtpPassword') { event.target.classList.remove('is-invalid'); form('smtp').querySelector('[data-setting-error="smtp.password"]').textContent = ''; }
       paintHelpers();
     });
     element.addEventListener('change', paintHelpers);
@@ -115,27 +132,37 @@ document.addEventListener('DOMContentLoaded', () => {
   ui.find('removeSettingsLogo').addEventListener('click', () => { logoReadId++; logo = ''; ui.find('settingsLogoFile').value = ''; paintLogo(); });
 
   function openTest(mode) {
-    const smtp = readSection('smtp'), errors = settings.validate('smtp', smtp); showErrors('smtp', errors);
-    if (Object.keys(errors).length) return;
-    testMode = mode;
-    ui.find('settingsTestTitle').textContent = mode === 'email' ? 'Email percobaan · Pratinjau' : 'Uji koneksi SMTP · Pratinjau';
-    ui.find('settingsTestSubmit').textContent = mode === 'email' ? 'Simulasikan email uji' : 'Periksa format';
+    if (smtpDirty() || !state.smtp.configured || testing) { ui.notify('Simpan konfigurasi SMTP sebelum menguji.'); return; }
+    const smtp = state.smtp; testMode = mode;
+    ui.find('settingsTestTitle').textContent = mode === 'email' ? 'Kirim email percobaan' : 'Uji koneksi SMTP';
+    ui.find('settingsTestSubmit').textContent = mode === 'email' ? 'Kirim email uji' : 'Uji koneksi';
+    ui.find('settingsTestDescription').textContent = mode === 'email' ? 'Satu email percobaan akan dikirim ke alamat di bawah menggunakan SMTP yang tersimpan.' : 'Server akan menguji koneksi SMTP terenkripsi menggunakan kredensial tersimpan. Uji ini tidak mengirim email.';
     ui.find('settingsTestServer').textContent = smtp.host + ':' + smtp.port + ' · ' + (smtp.encryption === 'tls' ? 'TLS langsung' : 'STARTTLS');
     ui.find('settingsTestSender').textContent = smtp.fromName + ' <' + smtp.fromEmail + '>';
     ui.find('settingsTestRecipientField').hidden = mode !== 'email';
-    ui.find('settingsTestRecipient').value = state.identity.contactEmail; ui.find('settingsTestRecipient').classList.remove('is-invalid');
+    ui.find('settingsTestRecipient').value = state.identity.contactEmail || JSON.parse(document.getElementById('authenticated-admin').textContent).email;
+    ui.find('settingsTestRecipient').classList.remove('is-invalid');
     ui.find('settingsTestResult').classList.add('d-none'); testModal.show();
   }
   ui.find('testSettingsConnection').addEventListener('click', () => openTest('connection'));
   ui.find('testSettingsEmail').addEventListener('click', () => openTest('email'));
   ui.find('settingsTestModal').addEventListener('shown.bs.modal', () => { if (testMode === 'email') ui.find('settingsTestRecipient').focus(); });
-  ui.find('settingsTestForm').addEventListener('submit', event => {
-    event.preventDefault();
+  ui.find('settingsTestModal').addEventListener('hide.bs.modal', event => { if (testing) event.preventDefault(); });
+  ui.find('settingsTestForm').addEventListener('submit', async event => {
+    event.preventDefault(); if (testing) return;
     const recipient = ui.find('settingsTestRecipient');
     if (testMode === 'email' && !preview.isValidEmail(recipient.value)) { recipient.classList.add('is-invalid'); recipient.focus(); return; }
-    recipient.classList.remove('is-invalid');
-    ui.find('settingsTestResult').textContent = testMode === 'email' ? 'Pratinjau email uji untuk ' + preview.normalizeEmail(recipient.value) + ' siap. Tidak ada email yang dikirim. Pengiriman aktual tersedia setelah backend diimplementasikan.' : 'Format pengaturan SMTP lengkap. Koneksi dan autentikasi ke mail server belum diuji; hasil ini belum menunjukkan bahwa server dapat digunakan.';
-    ui.find('settingsTestResult').classList.remove('d-none');
+    recipient.classList.remove('is-invalid'); testing = true;
+    const button = ui.find('settingsTestSubmit'), result = ui.find('settingsTestResult'); button.disabled = true;
+    result.className = 'alert alert-primary mt-5 mb-0'; result.textContent = testMode === 'email' ? 'Mengirim email percobaan…' : 'Menguji koneksi SMTP…'; paintHelpers();
+    try {
+      const response = await api.request(testMode === 'email' ? api.urls.testEmail : api.urls.connection, { method: 'POST', data: { revision: state.smtp.revision, ...(testMode === 'email' ? { recipient: preview.normalizeEmail(recipient.value) } : {}) } });
+      if (response.settings) { api.setSettings(response.settings); state = settings.load(ui.storage); paintSaved(); }
+      result.className = 'alert alert-' + (response.configurationChanged ? 'info' : 'success') + ' mt-5 mb-0'; result.textContent = response.message;
+    } catch (error) {
+      result.className = 'alert alert-danger mt-5 mb-0'; result.textContent = error.message;
+      try { const latest = await api.request(api.urls.settings); api.setSettings(latest.data); state = settings.load(ui.storage); paintSaved(); } catch {}
+    } finally { testing = false; button.disabled = false; paintHelpers(); }
   });
   ui.find('previewSettingsLanding').addEventListener('click', () => {
     const landing = readSection('landing'), errors = settings.validate('landing', landing); showErrors('landing', errors);

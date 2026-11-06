@@ -1,10 +1,10 @@
 'use strict';
 
 (function (root, factory) {
-  const api = factory(root.AwarenessPreview, root.AwarenessCampaigns);
+  const api = factory(root.AwarenessPreview, root.AwarenessCampaigns, () => root.AwarenessApi?.settingsSnapshot?.());
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.AwarenessSettings = api;
-})(typeof window === 'undefined' ? globalThis : window, function (preview, campaigns) {
+})(typeof window === 'undefined' ? globalThis : window, function (preview, campaigns, serverSettings) {
   const storageKey = 'security-awareness.settings.v1';
   const text = value => typeof value === 'string' ? value.trim() : '';
   const sections = ['identity', 'smtp', 'landing', 'reports', 'audit'];
@@ -26,7 +26,12 @@
     return {
       version: 1,
       identity: strings('identity', ['companyName', 'contactEmail', 'logo']),
-      smtp: { ...strings('smtp', ['host', 'encryption', 'username', 'fromEmail', 'fromName', 'replyTo']), port: String(item.smtp?.port ?? fallback.smtp.port).trim(), sendIntervalSeconds: item.smtp?.sendIntervalSeconds ?? 0 },
+      smtp: { ...strings('smtp', ['host', 'encryption', 'username', 'fromEmail', 'fromName', 'replyTo']), port: String(item.smtp?.port ?? fallback.smtp.port).trim(), sendIntervalSeconds: item.smtp?.sendIntervalSeconds ?? 0,
+        ...(typeof item.smtp?.configured === 'boolean' ? {
+          configured: item.smtp.configured === true, passwordConfigured: item.smtp.passwordConfigured === true,
+          revision: item.smtp.revision || null, connectionCheckedAt: item.smtp.connectionCheckedAt || null,
+          connectionSuccessful: typeof item.smtp.connectionSuccessful === 'boolean' ? item.smtp.connectionSuccessful : null
+        } : {}) },
       landing: strings('landing', ['baseUrl', 'type', 'title', 'message', 'tips']),
       reports: { timezone: 'Asia/Jakarta', pageLength: Number(item.reports?.pageLength ?? 10), period: String(item.reports?.period ?? 'all') },
       audit: { retentionMonths: Number(item.audit?.retentionMonths ?? 6) }, updatedAt: text(item.updatedAt)
@@ -65,6 +70,8 @@
   }
 
   function load(storage) {
+    const authoritative = serverSettings();
+    if (authoritative) return normalize(authoritative);
     try {
       const raw = storage.getItem(storageKey);
       if (!raw || raw.length > 900000) return defaults();

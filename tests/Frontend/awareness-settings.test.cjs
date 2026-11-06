@@ -155,3 +155,34 @@ test('blocked storage and corrupted settings fail safely without masking save fa
   assert.equal(result.storageError, true);
   assert.equal(settings.saveSection(storage(), 'unknown', {}, '').saved, false);
 });
+
+
+test('database settings override stale browser SMTP values and retain connection metadata without a password', () => {
+  const saved = settings.defaults(); saved.smtp.host = 'stale.example.com';
+  const target = { getItem: () => JSON.stringify(saved), setItem: () => { throw new Error('Must not write browser storage'); } };
+  const authoritative = settings.defaults();
+  authoritative.smtp = { ...authoritative.smtp, host: 'smtp.current.example.com', fromEmail: 'hr@example.com', configured: true, passwordConfigured: true, revision: 'saved-revision', connectionSuccessful: true, connectionCheckedAt: '2026-11-06T07:00:00Z', password: 'must-not-be-exposed', sendIntervalSeconds: 5 };
+  sandbox.AwarenessApi = { settingsSnapshot: () => authoritative };
+  try {
+    const actual = settings.load(target);
+    assert.equal(actual.smtp.host, 'smtp.current.example.com');
+    assert.equal(actual.smtp.connectionSuccessful, true);
+    assert.equal(actual.smtp.passwordConfigured, true);
+    assert.equal(actual.smtp.revision, 'saved-revision');
+    assert.equal(actual.smtp.password, undefined);
+    assert.equal(settings.campaignSender(actual).senderEmail, 'hr@example.com');
+  } finally { delete sandbox.AwarenessApi; }
+});
+
+test('unconfigured server SMTP stays empty and cannot fall back to browser sample credentials', () => {
+  const authoritative = settings.defaults();
+  authoritative.smtp = { ...authoritative.smtp, host: '', username: '', fromEmail: '', configured: false, passwordConfigured: false, sendIntervalSeconds: 0 };
+  sandbox.AwarenessApi = { settingsSnapshot: () => authoritative };
+  try {
+    const actual = settings.load({ getItem: () => { throw new Error('Browser storage unavailable'); } });
+    assert.equal(actual.smtp.host, '');
+    assert.equal(actual.smtp.fromEmail, '');
+    assert.equal(actual.smtp.configured, false);
+    assert.equal(actual.smtp.sendIntervalSeconds, 0);
+  } finally { delete sandbox.AwarenessApi; }
+});

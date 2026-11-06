@@ -8,6 +8,9 @@
   const statuses = {
     clicked: { label: 'Diakses', color: 'warning' },
     not_clicked: { label: 'Belum diakses', color: 'secondary' },
+    uncertain: { label: 'Perlu diperiksa', color: 'warning' },
+    skipped: { label: 'Tidak dikirim', color: 'secondary' },
+    sending: { label: 'Sedang diproses', color: 'info' },
     failed: { label: 'Pengiriman gagal', color: 'danger' },
     pending: { label: 'Belum dikirim', color: 'info' }
   };
@@ -41,7 +44,9 @@
   }
 
   function recipientRows(campaign) {
+    if (Array.isArray(campaign.recipientRows)) return JSON.parse(JSON.stringify(campaign.recipientRows));
     const ids = campaigns.recipientsFor(campaign);
+    const registry = new Map((campaign.recipientRegistry || []).map(item => [item.id, item.email]));
     const sent = hasResults(campaign) ? Math.min(ids.length, count(campaign.sent)) : 0;
     const clicked = Math.min(sent, count(campaign.clicked));
     const firstTimes = firstClickTimes(campaign, clicked);
@@ -62,7 +67,7 @@
         scheduledAt: campaign.scheduledAt || '', endsAt: campaign.endsAt || '', hasPeriod: !Object.keys(campaigns.validatePeriod(campaign, true)).length,
         withinClicks, afterClicks, beforeClicks, unclassifiedClicks,
         period: withinClicks ? 'within' : afterClicks ? 'after' : beforeClicks ? 'before' : unclassifiedClicks ? 'unknown' : 'none',
-        email: `karyawan${String(id).padStart(3, '0')}@perusahaan.example`, status,
+        email: registry.get(id) || `karyawan${String(id).padStart(3, '0')}@perusahaan.example`, status,
         delivery: status === 'pending' ? 'Belum dikirim' : status === 'failed' ? 'Gagal' : 'Berhasil',
         clicked: status === 'clicked', clicks: events.length,
         firstClick: events[0]?.at || '', lastClick: events.at(-1)?.at || '',
@@ -87,9 +92,10 @@
     const target = rows.length;
     const sent = rows.filter(row => ['clicked', 'not_clicked'].includes(row.status)).length;
     const evaluationSent = rows.filter(row => row.hasPeriod && ['clicked', 'not_clicked'].includes(row.status)).length;
-    const clicked = rows.filter(row => row.withinClicks > 0).length;
+    const evaluated = rows.filter(row => row.hasPeriod && ['clicked', 'not_clicked'].includes(row.status));
+    const clicked = evaluated.filter(row => row.withinClicks > 0).length;
     const sum = key => rows.reduce((total, row) => total + row[key], 0);
-    return { campaigns: items.length, target, sent, clicked, failed: rows.filter(row => row.status === 'failed').length, unclicked: evaluationSent - clicked, rate: evaluationSent ? clicked / evaluationSent * 100 : 0, clicks: sum('withinClicks'), uniqueEmails: new Set(rows.filter(row => row.withinClicks > 0).map(row => row.email)).size, evaluationSent, afterClicks: sum('afterClicks'), beforeClicks: sum('beforeClicks'), unclassifiedClicks: sum('unclassifiedClicks'), missingPeriods: items.filter(item => Object.keys(campaigns.validatePeriod(item, true)).length > 0).length };
+    return { campaigns: items.length, target, sent, clicked, failed: rows.filter(row => row.status === 'failed').length, unclicked: evaluationSent - clicked, rate: evaluationSent ? clicked / evaluationSent * 100 : 0, clicks: evaluated.reduce((total, row) => total + row.withinClicks, 0), uniqueEmails: new Set(evaluated.filter(row => row.withinClicks > 0).map(row => row.email)).size, evaluationSent, afterClicks: sum('afterClicks'), beforeClicks: sum('beforeClicks'), unclassifiedClicks: sum('unclassifiedClicks'), missingPeriods: items.filter(item => Object.keys(campaigns.validatePeriod(item, true)).length > 0).length };
   }
 
   function csvCell(value) {
@@ -103,13 +109,13 @@
   function summaryExport(items) {
     return toCsv(['Simulasi', 'Mulai (WIB)', 'Batas evaluasi (WIB)', 'Status', 'Target', 'Berhasil', 'Gagal', 'Penerima mengeklik dalam periode', 'Tingkat klik dalam periode (%)', 'Akses setelah batas', 'Akses sebelum mulai', 'Akses belum diklasifikasi', 'Pengiriman berhasil dengan periode lengkap', 'Keterangan'], items.map(item => {
       const summary = summarize([item], recipientRows(item));
-      return [item.name, campaigns.scheduleLabel(item.scheduledAt), campaigns.scheduleLabel(item.endsAt), campaigns.statuses[item.status]?.label || '', summary.target, summary.sent, summary.failed, summary.clicked, summary.evaluationSent ? summary.rate.toFixed(2) : '', summary.afterClicks, summary.beforeClicks, summary.unclassifiedClicks, summary.evaluationSent, 'Data contoh frontend'];
+      return [item.name, campaigns.scheduleLabel(item.scheduledAt), campaigns.scheduleLabel(item.endsAt), campaigns.statuses[item.status]?.label || '', summary.target, summary.sent, summary.failed, summary.clicked, summary.evaluationSent ? summary.rate.toFixed(2) : '', summary.afterClicks, summary.beforeClicks, summary.unclassifiedClicks, summary.evaluationSent, item.dataSource === 'database' ? 'Aktivitas tersimpan' : 'Data contoh frontend'];
     }));
   }
 
   function activityExport(rows) {
     const date = value => value ? preview.formatDate(value, true) : '';
-    return toCsv(['Email', 'Simulasi', 'Status', 'IP tercatat', 'Klik pertama (WIB)', 'Klik terakhir (WIB)', 'Total klik', 'Browser', 'Sistem operasi', 'Perangkat', 'Mulai (WIB)', 'Batas evaluasi (WIB)', 'Klasifikasi periode', 'Akses dalam periode', 'Akses setelah batas', 'Akses sebelum mulai', 'Akses belum diklasifikasi', 'Keterangan'], rows.map(row => [row.email, row.campaignName, statuses[row.status].label, row.ip, date(row.firstClick), date(row.lastClick), row.clicks, row.browser, row.os, row.device, campaigns.scheduleLabel(row.scheduledAt), campaigns.scheduleLabel(row.endsAt), periods[row.period], row.withinClicks, row.afterClicks, row.beforeClicks, row.unclassifiedClicks, 'Data contoh frontend']));
+    return toCsv(['Email', 'Simulasi', 'Status', 'IP tercatat', 'Klik pertama (WIB)', 'Klik terakhir (WIB)', 'Total klik', 'Browser', 'Sistem operasi', 'Perangkat', 'Mulai (WIB)', 'Batas evaluasi (WIB)', 'Klasifikasi periode', 'Akses dalam periode', 'Akses setelah batas', 'Akses sebelum mulai', 'Akses belum diklasifikasi', 'Keterangan'], rows.map(row => [row.email, row.campaignName, statuses[row.status].label, row.ip, date(row.firstClick), date(row.lastClick), row.clicks, row.browser, row.os, row.device, campaigns.scheduleLabel(row.scheduledAt), campaigns.scheduleLabel(row.endsAt), periods[row.period], row.withinClicks, row.afterClicks, row.beforeClicks, row.unclassifiedClicks, row.dataSource === 'database' ? 'Aktivitas tersimpan' : 'Data contoh frontend']));
   }
 
   return { statuses, periods, eventPeriod, hasResults, campaignDate, recipientRows, validateFilters, filterCampaigns, summarize, toCsv, summaryExport, activityExport };

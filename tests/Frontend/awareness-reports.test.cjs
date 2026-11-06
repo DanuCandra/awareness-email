@@ -190,3 +190,43 @@ test('summary export reconciles with report totals and does not mutate stored ca
   assert.equal(csv.split('\r\n').length, 2);
   assert.deepEqual(plain(items), before);
 });
+
+
+test('drafts with database recipient snapshots show actual addresses without fabricated delivery evidence', () => {
+  const draft = { ...campaigns.initialState().campaigns[0], status: 'draft', recipientMode: 'all', recipientRegistry: [{ id: 902, email: 'actual@example.com' }] };
+  const rows = reports.recipientRows(draft);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].email, 'actual@example.com');
+  assert.equal(rows[0].status, 'pending');
+  assert.equal(rows[0].clicks, 0);
+  assert.equal(rows[0].ip, '');
+});
+
+
+test('database recipient rows are used exactly and never replaced with generated sample activity', () => {
+  const actual = [{ id: 'real-row', email: 'employee@example.com', status: 'pending', ip: '', events: [] }];
+  const result = reports.recipientRows({ id: 'database-simulation', recipientMode: 'all', recipientRows: actual });
+  assert.deepEqual(plain(result), actual);
+  result[0].email = 'changed@example.com';
+  assert.equal(actual[0].email, 'employee@example.com');
+  assert.equal(reports.recipientRows({ recipientRows: [] }).length, 0);
+});
+
+test('unconfirmed delivery evidence stays outside the evaluation denominator and click rate', () => {
+  const baseline = { hasPeriod: true, withinClicks: 0, afterClicks: 0, beforeClicks: 0, unclassifiedClicks: 0 };
+  const summary = reports.summarize([], [
+    { ...baseline, status: 'clicked', email: 'confirmed@example.com', withinClicks: 1 },
+    { ...baseline, status: 'uncertain', email: 'unconfirmed@example.com', withinClicks: 2 },
+    { ...baseline, status: 'pending', email: 'waiting@example.com' }
+  ]);
+  assert.equal(summary.sent, 1); assert.equal(summary.clicked, 1);
+  assert.equal(summary.evaluationSent, 1); assert.equal(summary.rate, 100);
+  assert.equal(summary.clicks, 1); assert.equal(summary.uniqueEmails, 1);
+});
+
+test('CSV labels database activity with its actual source', () => {
+  const csv = reports.activityExport([{ dataSource: 'database', email: 'employee@example.com', campaignName: 'Internal', status: 'uncertain', period: 'none', scheduledAt: '', endsAt: '', events: [] }]);
+  assert.match(csv, /Aktivitas tersimpan/);
+  assert.doesNotMatch(csv, /Data contoh frontend/);
+  assert.match(csv, /Perlu diperiksa/);
+});

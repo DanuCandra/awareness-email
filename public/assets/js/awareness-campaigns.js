@@ -1,10 +1,13 @@
 'use strict';
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const root = document.getElementById('campaignList');
   if (!root) return;
   const core = window.AwarenessCampaigns, preview = window.AwarenessPreview, ui = window.AwarenessComposeUI;
-  let state = core.load(ui.storage);
+  const api = window.AwarenessApi;
+  let state = { campaigns: [] };
+  try { state.campaigns = (await api.request(api.urls.simulations)).data; }
+  catch (error) { api.showLoadError(root, error.message); }
   const escape = preview.escapeHtml;
   function url(base, id, key = 'id') { const target = new URL(base); target.searchParams.set(key, id); return target.href; }
   const table = new DataTable(ui.find('campaignTable'), {
@@ -30,20 +33,22 @@ document.addEventListener('DOMContentLoaded', () => {
   root.addEventListener('click', async event => {
     const button = event.target.closest('[data-campaign-action]');
     if (!button || busy) return;
-    const latest = core.load(ui.storage);
+    const latest = state;
     const campaign = latest.campaigns.find(item => item.id === button.dataset.id);
     if (!campaign) { ui.notify('Simulasi tidak ditemukan. Muat ulang daftar untuk melihat data terbaru.'); return; }
     busy = true;
     try {
       if (button.dataset.campaignAction === 'duplicate') {
-        const copy = core.duplicateCampaign(campaign, core.newId('campaign'), new Date().toISOString());
-        latest.campaigns.unshift(copy);
-        if (ui.persist(latest)) window.location.assign(url(root.dataset.createUrl, copy.id, 'edit'));
-      } else if (campaign.status === 'draft' && await ui.confirmAction('Hapus draf simulasi?', `Hapus draf “${campaign.name}” dari pratinjau?`)) {
-        latest.campaigns = latest.campaigns.filter(item => item.id !== campaign.id);
-        if (ui.persist(latest)) { state = latest; table.clear().rows.add(state.campaigns).draw(); counters(); ui.notify('Draf simulasi dihapus dari pratinjau.'); }
+        const response = await api.request(api.urls.simulations + '/' + campaign.id + '/duplicate', { method: 'POST' });
+        window.location.assign(url(root.dataset.createUrl, response.data.id, 'edit'));
+      } else if (campaign.status === 'draft' && await ui.confirmAction('Hapus draf simulasi?', 'Hapus draf “' + campaign.name + '”?')) {
+        await api.request(api.urls.simulations + '/' + campaign.id, { method: 'DELETE' });
+        await refresh(); ui.notify('Draf simulasi dihapus.');
       }
-    } finally { busy = false; }
+    } catch (error) { ui.notify(error.message); }
+    finally { busy = false; }
   });
+  async function refresh() { state.campaigns = (await api.request(api.urls.simulations)).data; table.clear().rows.add(state.campaigns).draw(false); counters(); }
   counters();
+  setInterval(() => { if (!busy && document.visibilityState === 'visible') refresh().catch(() => {}); }, 15000);
 });

@@ -1,10 +1,13 @@
 'use strict';
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const root = document.getElementById('reportsWorkspace');
   if (!root) return;
   const core = window.AwarenessCampaigns, reports = window.AwarenessReports, preview = window.AwarenessPreview, ui = window.AwarenessComposeUI;
-  const state = core.load(ui.storage), escape = preview.escapeHtml;
+  const api = window.AwarenessApi, escape = preview.escapeHtml;
+  let state = { campaigns: [] };
+  try { state.campaigns = (await api.request(api.urls.simulations + '?recipients=1')).data; }
+  catch (error) { api.showLoadError(root, error.message); return; }
   const number = value => Number(value).toLocaleString('id-ID');
   const percent = value => new Intl.NumberFormat('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value) + '%';
   const date = value => value ? preview.formatDate(value, true) : '—';
@@ -116,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function periodLabel() { return filters.from || filters.to ? (dateOnly(filters.from) || 'Awal periode') + ' – ' + (dateOnly(filters.to) || 'Akhir periode') : 'Seluruh periode'; }
   function renderPrint() {
-    ui.find('reportPrint').innerHTML = `<h1>Laporan Security Awareness</h1><p><strong>PT AST INDONESIA · Data contoh frontend</strong><br>Periode pengiriman: ${escape(periodLabel())}<br>Dibuat: ${escape(preview.formatDate(new Date().toISOString(), true))}</p><p>${number(summary.campaigns)} simulasi · ${number(summary.sent)} berhasil dikirim · ${number(summary.clicked)} penerima mengeklik · tingkat klik ${summary.evaluationSent ? percent(summary.rate) : '—'}</p><table><thead><tr><th>Simulasi</th><th>Mulai · WIB</th><th>Batas evaluasi · WIB</th><th>Target</th><th>Berhasil</th><th>Gagal</th><th>Mengeklik dalam periode</th><th>Akses setelah batas</th><th>Tingkat klik</th></tr></thead><tbody>${selected.map(item => { const value = campaignSummary(item); return `<tr><td>${escape(item.name)}</td><td>${escape(core.scheduleLabel(item.scheduledAt))}</td><td>${escape(core.scheduleLabel(item.endsAt))}</td><td>${number(value.target)}</td><td>${number(value.sent)}</td><td>${number(value.failed)}</td><td>${number(value.clicked)}</td><td>${number(value.afterClicks)}</td><td>${value.evaluationSent ? percent(value.rate) : '—'}</td></tr>`; }).join('')}</tbody></table><p>Penerima mengeklik dihitung unik pada setiap simulasi. ${number(summary.uniqueEmails)} alamat email unik lintas simulasi; ${number(summary.clicks)} akses dalam periode termasuk klik ulang. Tingkat klik = penerima mengeklik dalam periode dibagi pengiriman berhasil pada simulasi dengan periode lengkap. Akses setelah batas: ${number(summary.afterClicks)}; sebelum mulai: ${number(summary.beforeClicks)}; belum diklasifikasi: ${number(summary.unclassifiedClicks)}. Simulasi dengan periode belum lengkap: ${number(summary.missingPeriods)}. Seluruh data pada laporan ini merupakan contoh.</p>`;
+    ui.find('reportPrint').innerHTML = `<h1>Laporan Security Awareness</h1><p><strong>${escape(window.AwarenessSettings.load(ui.storage).identity.companyName)} · Aktivitas tersimpan</strong><br>Periode pengiriman: ${escape(periodLabel())}<br>Dibuat: ${escape(preview.formatDate(new Date().toISOString(), true))}</p><p>${number(summary.campaigns)} simulasi · ${number(summary.sent)} berhasil dikirim · ${number(summary.clicked)} penerima mengeklik · tingkat klik ${summary.evaluationSent ? percent(summary.rate) : '—'}</p><table><thead><tr><th>Simulasi</th><th>Mulai · WIB</th><th>Batas evaluasi · WIB</th><th>Target</th><th>Berhasil</th><th>Gagal</th><th>Mengeklik dalam periode</th><th>Akses setelah batas</th><th>Tingkat klik</th></tr></thead><tbody>${selected.map(item => { const value = campaignSummary(item); return `<tr><td>${escape(item.name)}</td><td>${escape(core.scheduleLabel(item.scheduledAt))}</td><td>${escape(core.scheduleLabel(item.endsAt))}</td><td>${number(value.target)}</td><td>${number(value.sent)}</td><td>${number(value.failed)}</td><td>${number(value.clicked)}</td><td>${number(value.afterClicks)}</td><td>${value.evaluationSent ? percent(value.rate) : '—'}</td></tr>`; }).join('')}</tbody></table><p>Penerima mengeklik dihitung unik pada setiap simulasi. ${number(summary.uniqueEmails)} alamat email unik lintas simulasi; ${number(summary.clicks)} akses dalam periode termasuk klik ulang. Tingkat klik = penerima mengeklik dalam periode dibagi pengiriman berhasil pada simulasi dengan periode lengkap. Akses setelah batas: ${number(summary.afterClicks)}; sebelum mulai: ${number(summary.beforeClicks)}; belum diklasifikasi: ${number(summary.unclassifiedClicks)}. Simulasi dengan periode belum lengkap: ${number(summary.missingPeriods)}. Seluruh data pada laporan ini merupakan contoh.</p>`;
   }
   function renderReport() {
     selected = reports.filterCampaigns(state.campaigns, filters);
