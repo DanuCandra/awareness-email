@@ -7,7 +7,6 @@
             <div><h4 class="mb-1" id="campaignFormTitle">Buat simulasi</h4><p class="mb-0 text-body-secondary">Lengkapi detail, penerima, dan pesan sebelum meninjau simulasi.</p></div>
             <div class="d-flex flex-wrap gap-3"><a href="{{ route('campaigns.index') }}" class="btn btn-label-secondary">Kembali</a><button type="button" class="btn btn-label-primary" id="saveCampaignDraft"><i class="icon-base ti tabler-device-floppy icon-sm me-2" aria-hidden="true"></i>Simpan draf</button></div>
         </div>
-        <div class="alert alert-primary mb-6" role="note"><span class="fw-medium">Persiapan simulasi.</span> Periksa penerima, pesan, dan batas evaluasi sebelum menjadwalkan pengiriman email.</div>
         <div class="alert alert-danger d-none" id="wizardUnavailable" role="alert"></div>
         <div class="card" id="wizardWorkspace">
             <div class="bs-stepper wizard-numbered compose-wizard" id="campaignWizard">

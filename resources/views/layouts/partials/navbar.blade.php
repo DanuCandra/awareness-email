@@ -9,7 +9,6 @@
             <div class="nav-item d-flex align-items-center" id="autocomplete"></div>
         </div>
         <ul class="navbar-nav flex-row align-items-center ms-md-auto">
-            <li class="nav-item me-3 d-none d-sm-block"><span class="badge bg-label-primary">{{ request()->routeIs('emails.*', 'email-templates.*', 'admins.*', 'settings.*', 'campaigns.*', 'reports.*') ? 'Workspace' : 'Pratinjau' }}</span></li>
             <li class="nav-item dropdown me-2 me-xl-0">
                 <a class="nav-link dropdown-toggle hide-arrow" id="nav-theme" href="#" data-bs-toggle="dropdown" aria-label="Pilih tema tampilan" aria-expanded="false">
                     <i class="icon-base ti tabler-sun icon-md theme-icon-active" aria-hidden="true"></i>

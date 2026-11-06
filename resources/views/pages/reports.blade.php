@@ -18,7 +18,6 @@
                 <div class="btn-group"><button type="button" class="btn btn-primary dropdown-toggle" id="exportReport" data-bs-toggle="dropdown" aria-expanded="false"><i class="icon-base ti tabler-download icon-sm me-2" aria-hidden="true"></i>Ekspor CSV</button><ul class="dropdown-menu dropdown-menu-end"><li><button type="button" class="dropdown-item" id="exportCampaignReport"><i class="icon-base ti tabler-table icon-sm me-2" aria-hidden="true"></i>Ringkasan simulasi</button></li><li><button type="button" class="dropdown-item" id="exportActivityReport"><i class="icon-base ti tabler-click icon-sm me-2" aria-hidden="true"></i>Aktivitas sesuai filter</button></li></ul></div>
             </div>
         </div>
-        <div class="alert alert-primary d-flex align-items-start gap-3 mb-6" role="note"><i class="icon-base ti tabler-info-circle icon-22px mt-1" aria-hidden="true"></i><div><span class="fw-medium">Aktivitas tersimpan.</span> Email, IP, dan waktu akses ditampilkan sesuai aktivitas yang tercatat. Laporan menampilkan simulasi berjalan dan selesai.</div></div>
         <div class="card mb-6">
             <div class="card-header pb-0"><h5 class="card-title mb-1">Filter laporan</h5><p class="card-subtitle">Periode berdasarkan tanggal pengiriman simulasi · WIB</p></div>
             <div class="card-body pt-5"><form id="reportFilterForm" novalidate>

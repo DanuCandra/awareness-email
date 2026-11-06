@@ -18,11 +18,6 @@
                     type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#emailImportModal"><i
                         class="icon-base ti tabler-upload icon-sm me-2" aria-hidden="true"></i>Impor Excel</button></div>
         </div>
-        <div class="alert alert-primary d-flex align-items-start gap-3" role="note"><i
-                class="icon-base ti tabler-info-circle icon-md flex-shrink-0 mt-1" aria-hidden="true"></i>
-            <div><span class="fw-medium">Daftar penerima perusahaan.</span> Tambahkan email satu per satu atau impor file
-                Excel. Email duplikat akan dilewati.</div>
-        </div>
         <div class="row g-6 mb-6">
             <div class="col-sm-4">
                 <div class="card">
