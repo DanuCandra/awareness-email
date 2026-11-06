@@ -18,7 +18,7 @@
                 <div class="w-px-400 mx-auto mt-12 pt-5">
                     <span class="badge bg-label-primary mb-5">Security Awareness</span>
                     <h4 class="mb-1">Selamat datang! 👋</h4>
-                    <p class="mb-6">Masuk ke workspace untuk mengelola simulasi awareness perusahaan Anda.</p>
+                    <p class="mb-6">Masuk ke workspace untuk mengelola simulasi awareness perusahaan.</p>
 
 
                     @if ($errors->any())<div class="alert alert-danger" role="alert">{{ $errors->first() }}</div>@endif
