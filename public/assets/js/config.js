@@ -55,7 +55,7 @@ window.templateName = document.documentElement.getAttribute('data-template');
  * -------------------------------------------------------------------------------------
  * displayCustomizer: true(Show customizer), false(Hide customizer)
  * lang: To set default language, Add more languages and set default. Fallback language is 'en'
- * defaultPrimaryColor: '#7367F0' | Set default primary color
+ * defaultPrimaryColor: '#0D9394' | Set default primary color
  * defaultSkin: 0(Default), 1(Bordered)
  * defaultTheme: 'light', 'dark', 'system'
  * defaultSemiDark: true, false (For dark menu only)
@@ -70,10 +70,22 @@ window.templateName = document.documentElement.getAttribute('data-template');
  */
 
 if (typeof TemplateCustomizer !== 'undefined') {
+  const defaultPrimaryColor = '#0D9394';
+  let customizerLanguage = 'en';
+  try {
+    customizerLanguage = localStorage.getItem('templateCustomizer-' + templateName + '--Lang') || 'en';
+    const colorKey = 'templateCustomizer-' + templateName + '--Color';
+    const versionKey = 'templateCustomizer-' + templateName + '--DefaultColorVersion';
+    if (localStorage.getItem(versionKey) !== 'green-v1') {
+      const savedColor = localStorage.getItem(colorKey);
+      if (!savedColor || savedColor.trim().toLowerCase() === '#7367f0') localStorage.setItem(colorKey, defaultPrimaryColor);
+      localStorage.setItem(versionKey, 'green-v1');
+    }
+  } catch {}
   window.templateCustomizer = new TemplateCustomizer({
     displayCustomizer: true,
-    lang: localStorage.getItem('templateCustomizer-' + templateName + '--Lang') || 'en', // Set default language here
-    // defaultPrimaryColor: '#D11BB4',
+    lang: customizerLanguage,
+    defaultPrimaryColor,
     // defaultSkin: 1,
     // defaultTheme: 'system',
     // defaultSemiDark: true,

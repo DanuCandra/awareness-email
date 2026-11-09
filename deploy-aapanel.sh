@@ -17,7 +17,7 @@ export COMPOSER_ALLOW_SUPERUSER=1 GIT_TERMINAL_PROMPT=0
 APP_DIR="${APP_DIR:-/www/wwwroot/awareness.ahost.my.id}"
 PHP_BIN="${PHP_BIN:-/www/server/php/85/bin/php}"
 DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
-SUPERVISORCTL_BIN="${SUPERVISORCTL_BIN:-supervisorctl}"
+SUPERVISORCTL_BIN="${SUPERVISORCTL_BIN:-/www/server/panel/pyenv/bin/supervisorctl}"
 SUPERVISOR_CONFIG="${SUPERVISOR_CONFIG:-}"
 SUPERVISOR_TARGET="${SUPERVISOR_TARGET:-awareness:awareness_00}"
 WEB_OWNER="${WEB_OWNER:-www}"
@@ -120,12 +120,9 @@ flock --wait 300 9 || die 'Another deployment still holds the lock.'
 
 COMPOSER_BIN="${COMPOSER_BIN:-$(command -v composer || true)}"
 [[ -f "$COMPOSER_BIN" ]] || die 'Set COMPOSER_BIN to the Composer PHP script or PHAR.'
-if ! command -v "$SUPERVISORCTL_BIN" >/dev/null; then
-    SUPERVISORCTL_BIN=/www/server/panel/pyenv/bin/supervisorctl
-fi
 supervisor_path=$(command -v "$SUPERVISORCTL_BIN" || true)
 [[ -x "$supervisor_path" ]] || die 'Set SUPERVISORCTL_BIN to the aaPanel supervisorctl executable.'
-supervisor=("$SUPERVISORCTL_BIN")
+supervisor=("$supervisor_path")
 if [[ -n "$SUPERVISOR_CONFIG" ]]; then supervisor+=(-c "$SUPERVISOR_CONFIG"); fi
 state=$(supervisor_state)
 [[ "$state" == 'RUNNING' || "$state" == 'STOPPED' ]] || die "Supervisor is in state $state. Resolve it before deploying."
