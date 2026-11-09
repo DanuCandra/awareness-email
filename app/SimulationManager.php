@@ -5,6 +5,7 @@ namespace App;
 use App\Jobs\ProcessSimulation;
 use App\Models\Recipient;
 use App\Models\Simulation;
+use App\Models\SimulationRecipient;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -67,6 +68,7 @@ class SimulationManager
                         throw ValidationException::withMessages(['recipients' => 'Daftar penerima kosong atau berubah. Pilih penerima kembali.']);
                     }
                     $this->enqueue($simulation, $simulation->starts_at);
+                    app(SimulationDeliveryLogger::class)->record($simulation, 'queued', 'Simulasi dijadwalkan mulai '.$simulation->starts_at->copy()->timezone('Asia/Jakarta')->format('d/m/Y H:i').' WIB.', key: 'scheduled');
                 }
 
                 return $simulation;
@@ -115,6 +117,7 @@ class SimulationManager
                 throw ValidationException::withMessages(['status' => 'Jadwal sudah diproses atau tidak lagi dapat dibatalkan.']);
             }
             $current->update(['status' => 'draft', 'dispatch_version' => (string) Str::uuid(), 'queued_at' => null]);
+            app(SimulationDeliveryLogger::class)->record($current, 'cancelled', 'Jadwal pengiriman dibatalkan dan Simulasi dikembalikan menjadi draf.', key: 'cancelled');
 
             return $current;
         });
@@ -128,8 +131,29 @@ class SimulationManager
                 return;
             }
             $current->update(['status' => 'completed']);
-            $current->recipients()->where('status', 'pending')->update(['status' => 'skipped', 'error' => 'Batas evaluasi telah berakhir.']);
-            $current->recipients()->where('status', 'sending')->where('attempted_at', '<=', now()->subMinutes(5))->update(['status' => 'uncertain', 'error' => 'Hasil proses sebelumnya belum terkonfirmasi; pengiriman tidak diulang otomatis.']);
+            $skipped = $current->recipients()->where('status', 'pending')->update(['status' => 'skipped', 'error' => 'Batas evaluasi telah berakhir.']);
+            $logger = app(SimulationDeliveryLogger::class);
+            if ($skipped > 0) {
+                $logger->record($current, 'skipped', $skipped.' penerima tidak dikirim karena batas evaluasi telah berakhir.', key: 'deadline-skipped');
+            }
+            $this->recoverStaleDeliveries($current);
+            $logger->record($current, 'evaluation_completed', 'Masa evaluasi Simulasi telah selesai. Tidak ada pengiriman baru setelah batas evaluasi.', key: 'evaluation-completed');
+            $logger->finishIfIdle($current);
+        });
+    }
+
+    public function recoverStaleDeliveries(Simulation $simulation): void
+    {
+        DB::transaction(function () use ($simulation): void {
+            $current = Simulation::query()->lockForUpdate()->find($simulation->id);
+            if (! $current || $current->dispatch_version !== $simulation->dispatch_version) {
+                return;
+            }
+            $current->recipients()->where('status', 'sending')->where('attempted_at', '<=', now()->subMinutes(5))
+                ->lockForUpdate()->get()->each(function (SimulationRecipient $recipient) use ($current): void {
+                    $recipient->update(['status' => 'uncertain', 'error' => 'Hasil proses sebelumnya belum terkonfirmasi; pengiriman tidak diulang otomatis.']);
+                    app(SimulationDeliveryLogger::class)->record($current, 'uncertain', 'Proses sebelumnya terhenti tanpa konfirmasi SMTP. Email ini tidak dikirim ulang otomatis.', $recipient, 'stale-'.$recipient->id);
+                });
         });
     }
 }

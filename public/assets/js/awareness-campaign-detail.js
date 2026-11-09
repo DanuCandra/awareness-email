@@ -29,6 +29,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   ui.find('campaignRecipientsTab').addEventListener('shown.bs.tab', () => recipientTable.columns.adjust().draw(false));
 
   function render() {
+    const logLink = ui.find('viewDeliveryLogs');
+    const logUrl = new URL(logLink.href); logUrl.searchParams.set('simulation', campaign.id); logLink.href = logUrl.href;
     ui.find('detailCampaignName').textContent = campaign.name;
     ui.find('detailCampaignStatus').innerHTML = ui.badge(campaign.status);
     const metric = preview.metrics(campaign);

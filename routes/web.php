@@ -2,10 +2,12 @@
 
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthenticatedSessionController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmailTemplateController;
 use App\Http\Controllers\RecipientController;
 use App\Http\Controllers\RecipientImportController;
 use App\Http\Controllers\SimulationController;
+use App\Http\Controllers\SimulationDeliveryLogController;
 use App\Http\Controllers\SimulationTrackingController;
 use App\Http\Controllers\SmtpTestController;
 use App\Http\Controllers\TemplateCategoryController;
@@ -21,6 +23,9 @@ Route::middleware('guest')->group(function (): void {
 
 Route::middleware(['auth', 'auth.session'])->group(function (): void {
     Route::view('/', 'pages.dashboard', ['pageTitle' => 'Dashboard'])->name('dashboard');
+    Route::get('/dashboard/data', [DashboardController::class, 'index'])->name('dashboard.data');
+    Route::get('/log-pengiriman', [SimulationDeliveryLogController::class, 'index'])->name('delivery-logs.index');
+    Route::get('/log-pengiriman/{simulation}', [SimulationDeliveryLogController::class, 'show'])->name('delivery-logs.show');
 
     Route::post('/emails/import/preview', [RecipientImportController::class, 'store'])->middleware('throttle:20,1')->name('emails.import.preview');
     Route::post('/emails/import/commit', [RecipientImportController::class, 'commit'])->middleware('throttle:20,1')->name('emails.import.commit');

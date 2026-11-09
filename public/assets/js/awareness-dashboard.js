@@ -3,110 +3,120 @@
 document.addEventListener('DOMContentLoaded', () => {
   const root = document.getElementById('awarenessDashboard');
   if (!root) return;
-  const preview = window.AwarenessPreview;
+  const api = window.AwarenessApi;
   const selector = document.getElementById('dashboardCampaign');
   const numberFormat = new Intl.NumberFormat('id-ID');
   const rateFormat = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-  let selected = preview.campaigns[0];
-  let chartsReady = false;
-
-  selector.replaceChildren(...preview.campaigns.map(campaign => new Option(campaign.name, campaign.id)));
-
+  const statuses = { draft: ['Draf', 'secondary'], scheduled: ['Terjadwal', 'info'], running: ['Berjalan', 'success'], completed: ['Selesai', 'secondary'] };
+  const empty = () => ({ id: '', name: 'Belum ada Simulasi', target: 0, sent: 0, clicked: 0, pending: 0, uncertain: 0, skipped: 0, unclicked: 0, rate: 0, progress: 0, activity: { labels: [], counts: [] }, recent: [] });
+  let selected = empty(), requestVersion = 0, loading = false;
+  let activityChart = null, responseChart = null, updating = false, updatePending = false, appliedSignature = '';
+  const formatDate = value => value ? new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value.length === 16 ? value + ':00+07:00' : value)) + ' WIB' : '—';
   function palette() {
     const styles = getComputedStyle(document.documentElement);
     const value = name => styles.getPropertyValue('--bs-' + name).trim();
-    return { primary: value('primary'), secondary: value('secondary'), muted: value('secondary-color'), heading: value('heading-color'), border: value('border-color'), paper: value('paper-bg'), font: styles.fontFamily, mode: document.documentElement.getAttribute('data-bs-theme') };
+    return { primary: value('primary'), muted: value('secondary-color'), heading: value('heading-color'), border: value('border-color'), font: styles.fontFamily, mode: document.documentElement.getAttribute('data-bs-theme') };
   }
-
   function createActivityChart() {
     const colors = palette();
     return new ApexCharts(document.getElementById('clickActivityChart'), {
-      chart: { type: 'bar', height: 265, toolbar: { show: false }, fontFamily: colors.font, foreColor: colors.muted, animations: { enabled: !window.matchMedia('(prefers-reduced-motion: reduce)').matches } },
-      series: [{ name: 'Penerima unik', data: selected.hourly }],
-      colors: [colors.primary],
+      chart: { type: 'bar', height: 265, toolbar: { show: false }, fontFamily: colors.font, foreColor: colors.muted, animations: { enabled: false } },
+      series: [{ name: 'Penerima unik', data: selected.activity.counts }], colors: [colors.primary],
+      noData: { text: 'Belum ada klik dalam masa evaluasi', style: { color: colors.muted } },
       plotOptions: { bar: { borderRadius: 5, columnWidth: '35%', borderRadiusApplication: 'end' } },
-      dataLabels: { enabled: false },
-      grid: { borderColor: colors.border, strokeDashArray: 4, padding: { left: 8, right: 10 } },
-      xaxis: { categories: ['09.00', '10.00', '11.00', '12.00', '13.00', '14.00'], axisBorder: { show: false }, axisTicks: { show: false } },
-      yaxis: { min: 0, forceNiceScale: true, decimalsInFloat: 0, title: { text: 'Penerima unik', style: { color: colors.muted, fontWeight: 400 } } },
-      tooltip: { theme: colors.mode, y: { formatter: value => value + ' penerima' } },
-      responsive: [{ breakpoint: 576, options: { chart: { height: 240 }, plotOptions: { bar: { columnWidth: '50%' } } } }]
+      dataLabels: { enabled: false }, grid: { borderColor: colors.border, strokeDashArray: 4 },
+      xaxis: { categories: selected.activity.labels, axisBorder: { show: false }, axisTicks: { show: false }, title: { text: 'Waktu klik pertama · WIB' } },
+      yaxis: { min: 0, forceNiceScale: true, decimalsInFloat: 0 },
+      tooltip: { theme: colors.mode, y: { formatter: value => value + ' penerima' } }
     });
-
   }
   function createResponseChart() {
     const colors = palette();
+    const rate = selected.rate;
     return new ApexCharts(document.getElementById('recipientResponseChart'), {
-      chart: { type: 'donut', height: 220, fontFamily: colors.font, animations: { enabled: !window.matchMedia('(prefers-reduced-motion: reduce)').matches } },
-      series: [selected.clicked, preview.metrics(selected).unclicked],
-      yaxis: [],
-      labels: ['Diakses', 'Belum diakses'],
-      colors: [colors.primary, colors.border],
-      stroke: { width: 0 },
-      legend: { show: false },
-      dataLabels: { enabled: false },
+      chart: { type: 'donut', height: 220, fontFamily: colors.font, animations: { enabled: false } },
+      series: selected.sent ? [selected.clicked, selected.unclicked] : [], yaxis: [],
+      noData: { text: 'Belum ada pengiriman berhasil', style: { color: colors.muted } },
+      labels: ['Diakses dalam periode', 'Belum diakses dalam periode'], colors: [colors.primary, colors.border],
+      stroke: { width: 0 }, legend: { show: false }, dataLabels: { enabled: false },
       tooltip: { theme: colors.mode, y: { formatter: value => value + ' penerima' } },
-      plotOptions: { pie: { expandOnClick: false, donut: { size: '78%', labels: { show: true, name: { show: true, offsetY: 22, color: colors.muted, fontSize: '13px' }, value: { offsetY: -12, color: colors.heading, fontSize: '28px', fontWeight: 500, formatter: value => numberFormat.format(Number(value)) }, total: { show: true, showAlways: true, label: 'Tingkat klik', color: colors.muted, formatter: () => rateFormat.format(preview.metrics(selected).rate) + '%' } } } } }
+      plotOptions: { pie: { expandOnClick: false, donut: { size: '78%', labels: { show: true, name: { show: true, offsetY: 22, color: colors.muted, fontSize: '13px' }, value: { offsetY: -12, color: colors.heading, fontSize: '28px', fontWeight: 500, formatter: value => numberFormat.format(Number(value)) }, total: { show: true, showAlways: true, label: 'Tingkat klik', color: colors.muted, formatter: () => rateFormat.format(rate) + '%' } } } } }
     });
-
   }
-  let activityChart = createActivityChart(), responseChart = createResponseChart();
-  let updatePending = false, updating = false, appliedSignature = '';
   function updateCharts() {
-    if (!chartsReady) return;
     updatePending = true;
     if (!updating) void applyChartUpdates();
   }
-
   async function applyChartUpdates() {
     updating = true;
     try {
       while (updatePending) {
         updatePending = false;
-        const theme = palette();
-        const signature = JSON.stringify([selected.id, theme.primary, theme.border, theme.muted, theme.heading, theme.mode]);
+        const signature = JSON.stringify([selected.id, selected.activity, selected.sent, selected.clicked, selected.rate, palette()]);
         if (signature === appliedSignature) continue;
-        activityChart.destroy(); responseChart.destroy();
+        activityChart?.destroy(); responseChart?.destroy();
         activityChart = createActivityChart(); responseChart = createResponseChart();
         await Promise.all([activityChart.render(), responseChart.render()]);
         appliedSignature = signature;
       }
     } catch (error) {
       console.error('Pembaruan grafik awareness gagal:', error);
-    } finally {
-      updating = false;
-    }
+    } finally { updating = false; }
   }
-
-  function renderCampaign() {
-    const metrics = preview.metrics(selected);
-    const values = { target: selected.target, sent: selected.sent, clicked: selected.clicked, failed: metrics.failed, unclicked: metrics.unclicked, rate: rateFormat.format(metrics.rate) + '%', date: preview.formatDate(selected.date) };
-    Object.entries(values).forEach(([key, value]) => {
-      root.querySelectorAll('[data-dashboard-' + key + ']').forEach(element => { element.textContent = typeof value === 'number' ? numberFormat.format(value) : value; });
-    });
+  function render() {
+    const values = { ...selected, rate: rateFormat.format(selected.rate) + '%', date: formatDate(selected.scheduledAt) };
+    for (const key of ['target', 'sent', 'clicked', 'pending', 'uncertain', 'skipped', 'unclicked', 'rate', 'date']) {
+      root.querySelectorAll('[data-dashboard-' + key + ']').forEach(element => { element.textContent = typeof values[key] === 'number' ? numberFormat.format(values[key]) : values[key]; });
+    }
     document.getElementById('selectedCampaignName').textContent = selected.name;
-    const reportUrl = new URL(root.dataset.reportsUrl); reportUrl.searchParams.set('campaign', selected.id); reportUrl.searchParams.set('tab', 'activity'); document.getElementById('dashboardReportLink').href = reportUrl.href;
-    const status = document.getElementById('campaignStatus');
-    status.textContent = selected.status;
-    status.className = 'badge ' + (selected.status === 'Berjalan' ? 'bg-label-success' : 'bg-label-secondary');
-    const events = [];
-    selected.hourly.forEach((count, hourIndex) => {
-      for (let index = 0; index < count; index++) {
-        const id = events.length + 1;
-        const minute = 3 + Math.floor(index * 54 / count);
-        events.push({ email: `karyawan${String(id).padStart(3, '0')}@perusahaan.example`, ip: `10.10.20.${30 + id}`, time: `${selected.date}T${String(hourIndex + 9).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+07:00` });
+    document.getElementById('dashboardStartsAt').textContent = formatDate(selected.scheduledAt);
+    document.getElementById('dashboardEndsAt').textContent = formatDate(selected.endsAt);
+    const [label, color] = statuses[selected.status] || ['—', 'secondary'];
+    const status = document.getElementById('campaignStatus'); status.textContent = label; status.className = 'badge bg-label-' + color;
+    document.getElementById('dashboardProgressLabel').textContent = numberFormat.format(selected.progress) + '%';
+    const progress = document.getElementById('dashboardProgress');
+    progress.setAttribute('aria-valuenow', String(selected.progress)); progress.querySelector('.progress-bar').style.width = selected.progress + '%';
+    const reportLink = document.getElementById('dashboardReportLink');
+    const url = new URL(root.dataset.reportsUrl); if (selected.id) { url.searchParams.set('campaign', selected.id); url.searchParams.set('tab', 'activity'); }
+    reportLink.href = url.href;
+    const rows = document.getElementById('recentClickRows'); rows.replaceChildren();
+    for (const event of selected.recent) {
+      const row = document.createElement('tr');
+      for (const value of [event.email, event.ip || '—', formatDate(event.at), 'Diakses dalam periode']) {
+        const cell = document.createElement('td'); cell.textContent = value; row.append(cell);
       }
-    });
-    document.getElementById('recentClickRows').innerHTML = events.slice(-6).reverse().map(event => `<tr><td><span class="fw-medium">${preview.escapeHtml(event.email)}</span></td><td class="text-nowrap">${event.ip}</td><td class="text-nowrap">${preview.escapeHtml(preview.formatDate(event.time, true))}</td><td><span class="badge bg-label-warning">Diakses</span></td></tr>`).join('');
-    document.getElementById('recipientResponseChart').setAttribute('aria-label', `${selected.clicked} tautan penerima diakses dan ${metrics.unclicked} belum diakses`);
+      rows.append(row);
+    }
+    if (!selected.recent.length) {
+      const row = document.createElement('tr'), cell = document.createElement('td'); cell.colSpan = 4; cell.className = 'text-center text-body-secondary py-8';
+      cell.textContent = selected.id ? 'Belum ada klik dalam masa evaluasi.' : 'Belum ada Simulasi. Buat Simulasi untuk melihat ringkasan.'; row.append(cell); rows.append(row);
+    }
+    document.getElementById('recipientResponseChart').setAttribute('aria-label', `${selected.clicked} penerima mengeklik dalam periode dan ${selected.unclicked} belum mengeklik dalam periode`);
     updateCharts();
   }
-
-  selector.addEventListener('change', () => {
-    selected = preview.campaigns.find(campaign => campaign.id === selector.value) || preview.campaigns[0];
-    renderCampaign();
-  });
-  renderCampaign();
-  Promise.all([activityChart.render(), responseChart.render()]).then(() => { const theme = palette(); appliedSignature = JSON.stringify([selected.id, theme.primary, theme.border, theme.muted, theme.heading, theme.mode]); chartsReady = true; updateCharts(); }).catch(error => console.error('Grafik awareness gagal dimuat:', error));
+  async function load(id = '', background = false) {
+    if (background && loading) return;
+    const version = ++requestVersion; loading = true;
+    const url = new URL(root.dataset.dashboardUrl); if (id) url.searchParams.set('simulation', id);
+    try {
+      const { data } = await api.request(url.href);
+      if (version !== requestVersion) return;
+      selected = data.selected || empty();
+      selector.replaceChildren(...(data.simulations.length ? data.simulations.map(item => new Option(item.name, item.id)) : [new Option('Belum ada Simulasi', '')]));
+      selector.value = selected.id; selector.disabled = !data.simulations.length;
+      root.querySelector('[data-load-error]')?.remove();
+      document.getElementById('dashboardUpdated').textContent = 'Diperbarui ' + formatDate(data.updatedAt);
+      render();
+    } catch (error) {
+      if (version !== requestVersion) return;
+      api.showLoadError(root, error.message);
+      document.getElementById('dashboardUpdated').textContent = 'Pembaruan data belum berhasil';
+      if (!background) { selected = empty(); render(); }
+    } finally { if (version === requestVersion) loading = false; }
+  }
+  selector.addEventListener('change', () => { selected = empty(); render(); void load(selector.value); });
   new MutationObserver(updateCharts).observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme', 'style', 'data-skin'] });
+  const interval = window.setInterval(() => { if (!document.hidden) void load(selector.value, true); }, 15000);
+  window.addEventListener('pagehide', () => { requestVersion++; window.clearInterval(interval); activityChart?.destroy(); responseChart?.destroy(); }, { once: true });
+  void load();
 });

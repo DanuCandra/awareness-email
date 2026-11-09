@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Models\SimulationClick;
 use App\Models\SimulationRecipient;
+use App\UserAgentDetails;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -30,10 +31,15 @@ class SimulationResource extends JsonResource
             $data['skipped'] += (int) $item->pending_count;
         }
         if ($item->relationLoaded('recipients')) {
+            $agentDetails = new UserAgentDetails;
             $data['recipientIds'] = $item->recipients->whereNotNull('recipient_id')->pluck('recipient_id')->all();
             $data['recipientRegistry'] = $item->recipients->map(fn (SimulationRecipient $r): array => ['id' => $r->recipient_id ?? -$r->id, 'email' => $r->email])->all();
-            $data['recipientRows'] = $item->recipients->map(function (SimulationRecipient $r) use ($data): array {
-                $events = $r->clicks->sortBy('clicked_at')->map(fn (SimulationClick $click): array => ['at' => $click->clicked_at->toISOString(), 'ip' => $click->ip ?? '', 'period' => $click->period, 'browser' => 'Tidak diketahui', 'os' => 'Tidak diketahui', 'device' => 'Tidak diketahui'])->values()->all();
+            $data['recipientRows'] = $item->recipients->map(function (SimulationRecipient $r) use ($data, $agentDetails): array {
+                $events = $r->clicks->sortBy('clicked_at')->map(fn (SimulationClick $click): array => [
+                    'at' => $click->clicked_at->toISOString(), 'ip' => $click->ip ?? '', 'period' => $click->period,
+                    ...$agentDetails->parse($click->user_agent),
+                ])->values()->all();
+                $lastEvent = $events ? $events[array_key_last($events)] : null;
                 $within = count(array_filter($events, fn (array $e): bool => $e['period'] === 'within'));
                 $after = count(array_filter($events, fn (array $e): bool => $e['period'] === 'after'));
                 $before = count(array_filter($events, fn (array $e): bool => $e['period'] === 'before'));
@@ -48,8 +54,8 @@ class SimulationResource extends JsonResource
                     'clicked' => (bool) $events, 'clicks' => count($events), 'withinClicks' => $within, 'afterClicks' => $after, 'beforeClicks' => $before, 'unclassifiedClicks' => 0,
                     'period' => $within ? 'within' : ($after ? 'after' : ($before ? 'before' : 'none')),
                     'firstClick' => $events[0]['at'] ?? '', 'lastClick' => $events ? $events[array_key_last($events)]['at'] : '',
-                    'ip' => $events ? $events[array_key_last($events)]['ip'] : '',
-                    'browser' => 'Tidak diketahui', 'os' => 'Tidak diketahui', 'device' => 'Tidak diketahui', 'events' => $events, 'error' => $r->error,
+                    'ip' => $lastEvent['ip'] ?? '',
+                    'browser' => $lastEvent['browser'] ?? '', 'os' => $lastEvent['os'] ?? '', 'device' => $lastEvent['device'] ?? '', 'events' => $events, 'error' => $r->error,
                 ];
             })->all();
         }

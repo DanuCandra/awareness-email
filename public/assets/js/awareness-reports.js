@@ -119,7 +119,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function periodLabel() { return filters.from || filters.to ? (dateOnly(filters.from) || 'Awal periode') + ' – ' + (dateOnly(filters.to) || 'Akhir periode') : 'Seluruh periode'; }
   function renderPrint() {
-    ui.find('reportPrint').innerHTML = `<h1>Laporan Security Awareness</h1><p><strong>${escape(window.AwarenessSettings.load(ui.storage).identity.companyName)} · Aktivitas tersimpan</strong><br>Periode pengiriman: ${escape(periodLabel())}<br>Dibuat: ${escape(preview.formatDate(new Date().toISOString(), true))}</p><p>${number(summary.campaigns)} simulasi · ${number(summary.sent)} berhasil dikirim · ${number(summary.clicked)} penerima mengeklik · tingkat klik ${summary.evaluationSent ? percent(summary.rate) : '—'}</p><table><thead><tr><th>Simulasi</th><th>Mulai · WIB</th><th>Batas evaluasi · WIB</th><th>Target</th><th>Berhasil</th><th>Gagal</th><th>Mengeklik dalam periode</th><th>Akses setelah batas</th><th>Tingkat klik</th></tr></thead><tbody>${selected.map(item => { const value = campaignSummary(item); return `<tr><td>${escape(item.name)}</td><td>${escape(core.scheduleLabel(item.scheduledAt))}</td><td>${escape(core.scheduleLabel(item.endsAt))}</td><td>${number(value.target)}</td><td>${number(value.sent)}</td><td>${number(value.failed)}</td><td>${number(value.clicked)}</td><td>${number(value.afterClicks)}</td><td>${value.evaluationSent ? percent(value.rate) : '—'}</td></tr>`; }).join('')}</tbody></table><p>Penerima mengeklik dihitung unik pada setiap simulasi. ${number(summary.uniqueEmails)} alamat email unik lintas simulasi; ${number(summary.clicks)} akses dalam periode termasuk klik ulang. Tingkat klik = penerima mengeklik dalam periode dibagi pengiriman berhasil pada simulasi dengan periode lengkap. Akses setelah batas: ${number(summary.afterClicks)}; sebelum mulai: ${number(summary.beforeClicks)}; belum diklasifikasi: ${number(summary.unclassifiedClicks)}. Simulasi dengan periode belum lengkap: ${number(summary.missingPeriods)}. Seluruh data pada laporan ini merupakan contoh.</p>`;
+    ui.find('reportPrint').innerHTML = `<h1>Laporan Security Awareness</h1><p><strong>${escape(window.AwarenessSettings.load(ui.storage).identity.companyName)} · Aktivitas tersimpan</strong><br>Periode pengiriman: ${escape(periodLabel())}<br>Dibuat: ${escape(preview.formatDate(new Date().toISOString(), true))}</p><p>${number(summary.campaigns)} simulasi · ${number(summary.sent)} berhasil dikirim · ${number(summary.clicked)} penerima mengeklik · tingkat klik ${summary.evaluationSent ? percent(summary.rate) : '—'}</p><table><thead><tr><th>Simulasi</th><th>Mulai · WIB</th><th>Batas evaluasi · WIB</th><th>Target</th><th>Berhasil</th><th>Gagal</th><th>Mengeklik dalam periode</th><th>Akses setelah batas</th><th>Tingkat klik</th></tr></thead><tbody>${selected.map(item => { const value = campaignSummary(item); return `<tr><td>${escape(item.name)}</td><td>${escape(core.scheduleLabel(item.scheduledAt))}</td><td>${escape(core.scheduleLabel(item.endsAt))}</td><td>${number(value.target)}</td><td>${number(value.sent)}</td><td>${number(value.failed)}</td><td>${number(value.clicked)}</td><td>${number(value.afterClicks)}</td><td>${value.evaluationSent ? percent(value.rate) : '—'}</td></tr>`; }).join('')}</tbody></table><p>Penerima mengeklik dihitung unik pada setiap simulasi. ${number(summary.uniqueEmails)} alamat email unik lintas simulasi; ${number(summary.clicks)} akses dalam periode termasuk klik ulang. Tingkat klik = penerima mengeklik dalam periode dibagi pengiriman berhasil pada simulasi dengan periode lengkap. Akses setelah batas: ${number(summary.afterClicks)}; sebelum mulai: ${number(summary.beforeClicks)}; belum diklasifikasi: ${number(summary.unclassifiedClicks)}. Simulasi dengan periode belum lengkap: ${number(summary.missingPeriods)}. Data pada laporan ini berasal dari aktivitas Simulasi yang tersimpan.</p>`;
   }
   function renderReport() {
     selected = reports.filterCampaigns(state.campaigns, filters);
@@ -160,7 +160,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   ui.find('reportFilterForm').addEventListener('submit', event => { event.preventDefault(); applyFilters(); });
   function resetFilters() {
     campaignSelector.value = ''; ui.find('reportFrom').value = ''; ui.find('reportTo').value = '';
-    ui.find('reportActivitySearch').value = ''; ui.find('reportActivityStatus').value = 'clicked'; ui.find('reportActivityPeriod').value = '';
+    ui.find('reportActivitySearch').value = ''; ui.find('reportActivityStatus').value = ''; ui.find('reportActivityPeriod').value = '';
     applyFilters();
   }
   ui.find('resetReportFilters').addEventListener('click', resetFilters);
@@ -168,7 +168,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   ui.find('reportCampaignTable').addEventListener('click', event => {
     const button = event.target.closest('[data-report-campaign]');
     if (!button) return;
-    campaignSelector.value = button.dataset.reportCampaign; ui.find('reportFrom').value = filters.from; ui.find('reportTo').value = filters.to; ui.find('reportActivitySearch').value = ''; ui.find('reportActivityStatus').value = 'clicked'; ui.find('reportActivityPeriod').value = ''; applyFilters();
+    campaignSelector.value = button.dataset.reportCampaign; ui.find('reportFrom').value = filters.from; ui.find('reportTo').value = filters.to; ui.find('reportActivitySearch').value = ''; ui.find('reportActivityStatus').value = ''; ui.find('reportActivityPeriod').value = ''; applyFilters();
     bootstrap.Tab.getOrCreateInstance(ui.find('reportActivityTab')).show();
     ui.find('reportActivityTab').scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   });
@@ -186,11 +186,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     ui.find('reportRecipientTimeline').innerHTML = item.events.map((visit, index) => `<li class="timeline-item timeline-item-transparent"><span class="timeline-point timeline-point-${index ? 'secondary' : 'warning'}"></span><div class="timeline-event"><div class="timeline-header mb-2"><h6 class="mb-0">${index ? 'Klik ulang' : 'Klik pertama'}</h6><small class="text-body-secondary">${escape(date(visit.at))}</small></div><p class="small mb-1">${escape(visit.ip)} · ${escape(visit.browser)} · ${escape(visit.os)}</p><small class="text-body-secondary">${escape(visit.device)} · Akses ke-${index + 1} · ${escape(reports.periods[visit.period])}</small></div></li>`).join('');
     modal.show();
   });
-  function download(csv, name) { preview.download(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), name + '-data-contoh.csv'); }
-  ui.find('exportCampaignReport').addEventListener('click', () => { if (selected.length) { download(reports.summaryExport(selected), 'ringkasan-simulasi'); ui.notify('Ringkasan simulasi sesuai filter berhasil diekspor sebagai CSV.'); } });
+  let exporting = false;
+  async function download(sheet, name, message) {
+    if (exporting) return;
+    exporting = true;
+    const buttons = ['exportCampaignReport', 'exportActivityReport'].map(ui.find);
+    buttons.forEach(button => { button.disabled = true; });
+    try {
+      const blob = await reports.createWorkbook(window.JSZip, sheet);
+      preview.download(blob, name + '.xlsx');
+      ui.notify(message);
+    } catch (error) { ui.notify('Ekspor Excel gagal. ' + error.message); }
+    finally { exporting = false; ui.find('exportCampaignReport').disabled = !selected.length; updateActivityCount(); }
+  }
+  ui.find('exportCampaignReport').addEventListener('click', () => {
+    if (selected.length) void download(reports.summarySheet(selected), 'ringkasan-simulasi', 'Ringkasan simulasi sesuai filter berhasil diekspor sebagai Excel.');
+  });
   ui.find('exportActivityReport').addEventListener('click', () => {
     const rows = activityTable.rows({ search: 'applied', order: 'applied' }).data().toArray();
-    if (rows.length) { download(reports.activityExport(rows), 'aktivitas-penerima'); ui.notify(number(rows.length) + ' baris aktivitas sesuai filter diekspor, termasuk seluruh halaman tabel.'); }
+    if (rows.length) void download(reports.activitySheet(rows), 'aktivitas-penerima', number(rows.length) + ' baris aktivitas sesuai filter diekspor sebagai Excel, termasuk seluruh halaman tabel.');
   });
   ui.find('printReport').addEventListener('click', () => { if (selected.length) { renderPrint(); window.print(); } });
   window.addEventListener('beforeprint', renderPrint);

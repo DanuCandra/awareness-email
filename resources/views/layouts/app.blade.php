@@ -4,6 +4,7 @@
         ['label' => 'Dashboard', 'route' => 'dashboard', 'icon' => 'tabler-smart-home'],
         ['label' => 'Daftar Email', 'route' => 'emails.index', 'icon' => 'tabler-mail'],
         ['label' => 'Simulasi', 'route' => 'campaigns.index', 'icon' => 'tabler-send', 'active' => 'campaigns.*'],
+        ['label' => 'Log Pengiriman', 'route' => 'delivery-logs.index', 'icon' => 'tabler-list-details', 'active' => 'delivery-logs.*'],
         ['label' => 'Template Email', 'route' => 'email-templates.index', 'icon' => 'tabler-file-description'],
         ['label' => 'Laporan', 'route' => 'reports.index', 'icon' => 'tabler-chart-bar'],
         ['label' => 'Pengaturan', 'route' => 'settings.index', 'icon' => 'tabler-settings'],

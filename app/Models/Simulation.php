@@ -27,6 +27,11 @@ class Simulation extends Model
         return $this->hasMany(SimulationRecipient::class);
     }
 
+    public function deliveryLogs(): HasMany
+    {
+        return $this->hasMany(SimulationDeliveryLog::class);
+    }
+
     public function effectiveStatus(): string
     {
         return $this->status !== 'draft' && $this->ends_at?->lte(now()) ? 'completed' : $this->status;
