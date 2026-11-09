@@ -94,7 +94,7 @@ class EmailContent
         foreach ($matches[0] as $index => $match) {
             $html .= $this->slice($parts, $cursor, $match[1]);
             $key = $matches[1][$index][0];
-            $html .= $key === 'tracking_link' ? '<a href="'.e($context['link']).'" style="display:inline-block;padding:10px 18px;background:#7367f0;color:#fff;border-radius:5px;text-decoration:none">Lihat informasi</a>' : e($context[$key === 'email' ? 'email' : 'campaignName']);
+            $html .= $key === 'tracking_link' ? '<a href="'.e($context['link']).'" style="display:inline-block;padding:10px 18px;background:#0D9394;color:#fff;border-radius:5px;text-decoration:none">Lihat informasi</a>' : e($context[$key === 'email' ? 'email' : 'campaignName']);
             $cursor = $match[1] + strlen($match[0]);
         }
 

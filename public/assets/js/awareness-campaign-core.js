@@ -299,8 +299,8 @@
     return output;
   }
 
-  function emailDocument(delta, context = {}, accent = '#7367f0') {
-    const safeAccent = /^#[a-f0-9]{6}$/i.test(accent) ? accent : '#7367f0';
+  function emailDocument(delta, context = {}, accent = '#0D9394') {
+    const safeAccent = /^#[a-f0-9]{6}$/i.test(accent) ? accent : '#0D9394';
     return '<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; style-src &#39;unsafe-inline&#39;; form-action &#39;none&#39;; base-uri &#39;none&#39;"><style>body{margin:0;padding:24px;font:14px/1.65 Arial,sans-serif;color:#444050;background:#fff;overflow-wrap:anywhere}p{margin:0 0 14px}h1,h2,h3{line-height:1.3;margin:0 0 18px}h1{font-size:24px}h2{font-size:21px}h3{font-size:18px}a{color:' + safeAccent + '}a.email-cta{display:inline-block;padding:10px 18px;background:' + safeAccent + ';color:#fff;border-radius:5px;text-decoration:none}blockquote{border-left:3px solid #dedde4;padding-left:12px;margin:0 0 14px;color:#6d6b77}li{margin-bottom:6px}</style></head><body>' + renderBody(delta, context) + '</body></html>';
   }
 
