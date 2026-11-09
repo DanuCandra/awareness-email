@@ -197,7 +197,7 @@ sleep 4
 
 phase=online
 artisan up
-# A fresh request must succeed without the maintenance bypass cookie.
+# A fresh request must succeed without the maintenance bypass cookie. 
 : > "$cookie_file"
 http_health
 
