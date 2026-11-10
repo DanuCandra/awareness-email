@@ -12,6 +12,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->trustProxies(at: '*');
         $middleware->trimStrings(except: [fn (Request $request): bool => $request->is('email-templates*', 'simulasi*')]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

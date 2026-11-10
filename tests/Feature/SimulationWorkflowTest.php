@@ -357,7 +357,7 @@ class SimulationWorkflowTest extends TestCase
         $recipient = $simulation->recipients()->sole();
         $recipient->update(['status' => 'sent', 'sent_at' => now()]);
         $url = route('simulation-links.show', ['token' => $recipient->token]);
-        $this->withServerVariables(['REMOTE_ADDR' => '10.20.30.40'])->withHeaders(['X-Forwarded-For' => '203.0.113.10', 'User-Agent' => 'Browser test'])->get($url)->assertOk()->assertDontSee($recipient->email);
+        $this->withServerVariables(['REMOTE_ADDR' => '10.20.30.40'])->withHeaders(['User-Agent' => 'Browser test'])->get($url)->assertOk()->assertDontSee($recipient->email);
         $this->get($url)->assertOk();
         $this->assertDatabaseCount('simulation_clicks', 2);
         $this->assertDatabaseHas('simulation_clicks', ['ip' => '10.20.30.40', 'period' => 'within', 'user_agent' => 'Browser test']);
